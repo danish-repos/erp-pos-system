@@ -7,19 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Search,
-  Plus,
-  Minus,
-  Trash2,
-  User,
-  CreditCard,
-  Smartphone,
-  Banknote,
-  Printer,
-  MessageSquare,
-  ShoppingCart,
-} from "lucide-react"
+import { Search, Plus, Minus, Trash2, User, CreditCard, Smartphone, Banknote, Printer, MessageSquare, ShoppingCart} from "lucide-react"
 
 interface CartItem {
   id: string
@@ -114,7 +102,7 @@ export function POSModule() {
     if (cart.length === 0) return
 
     // Here you would typically process the sale
-    alert(`Sale completed! Total: ₹${total.toLocaleString()}`)
+    alert(`Sale completed! Total: Rs${total.toLocaleString()}`)
 
     // Reset form
     setCart([])
@@ -160,7 +148,7 @@ export function POSModule() {
                       <p className="text-sm text-muted-foreground">Stock: {product.stock}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">₹{product.price}</p>
+                      <p className="font-bold">Rs{product.price}</p>
                       <Button size="sm" variant="outline">
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -232,7 +220,7 @@ export function POSModule() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span>Price:</span>
-                        <span>₹{item.price}</span>
+                        <span>Rs{item.price}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Label className="text-xs">Discount:</Label>
@@ -246,7 +234,7 @@ export function POSModule() {
                       </div>
                       <div className="flex justify-between text-sm font-medium">
                         <span>Total:</span>
-                        <span>₹{item.finalPrice}</span>
+                        <span>Rs{item.finalPrice}</span>
                       </div>
                     </div>
                   </div>
@@ -259,15 +247,15 @@ export function POSModule() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
-                <span>₹{subtotal.toLocaleString()}</span>
+                <span>Rs{subtotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-red-600">
                 <span>Total Discount:</span>
-                <span>-₹{totalDiscount.toLocaleString()}</span>
+                <span>-Rs{totalDiscount.toLocaleString()}</span>
               </div>
               <div className="flex justify-between font-bold text-lg">
                 <span>Total:</span>
-                <span>₹{total.toLocaleString()}</span>
+                <span>Rs{total.toLocaleString()}</span>
               </div>
             </div>
           </CardContent>

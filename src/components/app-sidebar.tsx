@@ -1,30 +1,9 @@
 "use client"
 
-import {
-  BarChart3,
-  ShoppingCart,
-  Package,
-  Users,
-  CreditCard,
-  FileText,
-  Settings,
-  Trash2,
-  TrendingDown,
-  Warehouse,
-} from "lucide-react"
+import { BarChart3, ShoppingCart, Package, Users, CreditCard, FileText, Settings, Trash2, TrendingDown, Warehouse } from "lucide-react"
 
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
-} from "@/components/ui/sidebar"
+import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter }
+ from "@/components/ui/sidebar"
 
 const menuItems = [
   {

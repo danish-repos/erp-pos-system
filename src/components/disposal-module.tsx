@@ -317,7 +317,7 @@ export function DisposalModule() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="originalPrice">Original Price (₹)</Label>
+                    <Label htmlFor="originalPrice">Original Price (Rs)</Label>
                     <Input
                       id="originalPrice"
                       type="number"
@@ -369,7 +369,7 @@ export function DisposalModule() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="disposalValue">Recovery Value (₹)</Label>
+                    <Label htmlFor="disposalValue">Recovery Value (Rs)</Label>
                     <Input
                       id="disposalValue"
                       type="number"
@@ -442,7 +442,7 @@ export function DisposalModule() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">₹{totalLoss.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-red-600">Rs{totalLoss.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">This month</p>
           </CardContent>
         </Card>
@@ -462,7 +462,7 @@ export function DisposalModule() {
             <CardTitle className="text-sm font-medium">Recovery Value</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">₹{totalRecoveredValue.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-green-600">Rs{totalRecoveredValue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Recovered amount</p>
           </CardContent>
         </Card>
@@ -525,11 +525,11 @@ export function DisposalModule() {
                           </div>
                         </TableCell>
                         <TableCell>{record.quantity}</TableCell>
-                        <TableCell>₹{(record.originalPrice * record.quantity).toLocaleString()}</TableCell>
-                        <TableCell>₹{(record.disposalValue * record.quantity).toLocaleString()}</TableCell>
+                        <TableCell>Rs{(record.originalPrice * record.quantity).toLocaleString()}</TableCell>
+                        <TableCell>Rs{(record.disposalValue * record.quantity).toLocaleString()}</TableCell>
                         <TableCell>
                           <span className="font-medium text-red-600">
-                            ₹{(record.lossAmount * record.quantity).toLocaleString()}
+                            Rs{(record.lossAmount * record.quantity).toLocaleString()}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -583,7 +583,7 @@ export function DisposalModule() {
                     <div key={reason} className="space-y-2">
                       <div className="flex justify-between">
                         <span className="font-medium">{reason}</span>
-                        <span className="text-red-600">₹{stats.loss.toLocaleString()}</span>
+                        <span className="text-red-600">Rs{stats.loss.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-sm text-muted-foreground">
                         <span>{stats.count} items</span>
@@ -615,7 +615,7 @@ export function DisposalModule() {
                     <div key={condition} className="space-y-2">
                       <div className="flex justify-between">
                         <span className="font-medium capitalize">{condition}</span>
-                        <span className="text-red-600">₹{stats.loss.toLocaleString()}</span>
+                        <span className="text-red-600">Rs{stats.loss.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-sm text-muted-foreground">
                         <span>{stats.count} items</span>
@@ -643,12 +643,12 @@ export function DisposalModule() {
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="p-4 border rounded-lg">
                   <h3 className="font-medium">This Month</h3>
-                  <p className="text-2xl font-bold text-red-600">₹{totalLoss.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-red-600">Rs{totalLoss.toLocaleString()}</p>
                   <p className="text-sm text-muted-foreground">{totalItemsDisposed} items disposed</p>
                 </div>
                 <div className="p-4 border rounded-lg">
                   <h3 className="font-medium">Last Month</h3>
-                  <p className="text-2xl font-bold">₹{(totalLoss * 0.8).toLocaleString()}</p>
+                  <p className="text-2xl font-bold">Rs{(totalLoss * 0.8).toLocaleString()}</p>
                   <p className="text-sm text-muted-foreground">{Math.round(totalItemsDisposed * 0.8)} items disposed</p>
                 </div>
                 <div className="p-4 border rounded-lg">
@@ -733,17 +733,17 @@ export function DisposalModule() {
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="p-4 border rounded-lg">
                   <h3 className="font-medium">Better Handling</h3>
-                  <p className="text-2xl font-bold text-green-600">₹15,000</p>
+                  <p className="text-2xl font-bold text-green-600">Rs15,000</p>
                   <p className="text-sm text-muted-foreground">Potential monthly savings</p>
                 </div>
                 <div className="p-4 border rounded-lg">
                   <h3 className="font-medium">Faster Clearance</h3>
-                  <p className="text-2xl font-bold text-green-600">₹8,000</p>
+                  <p className="text-2xl font-bold text-green-600">Rs8,000</p>
                   <p className="text-sm text-muted-foreground">From better inventory management</p>
                 </div>
                 <div className="p-4 border rounded-lg">
                   <h3 className="font-medium">Quality Improvement</h3>
-                  <p className="text-2xl font-bold text-green-600">₹12,000</p>
+                  <p className="text-2xl font-bold text-green-600">Rs12,000</p>
                   <p className="text-sm text-muted-foreground">Through supplier quality control</p>
                 </div>
               </div>
@@ -789,20 +789,20 @@ export function DisposalModule() {
                 <div>
                   <Label>Original Value</Label>
                   <p className="font-medium">
-                    ₹{(selectedRecord.originalPrice * selectedRecord.quantity).toLocaleString()}
+                    Rs{(selectedRecord.originalPrice * selectedRecord.quantity).toLocaleString()}
                   </p>
                 </div>
                 <div>
                   <Label>Recovery Value</Label>
                   <p className="font-medium text-green-600">
-                    ₹{(selectedRecord.disposalValue * selectedRecord.quantity).toLocaleString()}
+                    Rs{(selectedRecord.disposalValue * selectedRecord.quantity).toLocaleString()}
                   </p>
                 </div>
               </div>
               <div>
                 <Label>Loss Amount</Label>
                 <p className="font-medium text-red-600">
-                  ₹{(selectedRecord.lossAmount * selectedRecord.quantity).toLocaleString()}
+                  Rs{(selectedRecord.lossAmount * selectedRecord.quantity).toLocaleString()}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">

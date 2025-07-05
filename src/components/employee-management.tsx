@@ -509,7 +509,7 @@ export function EmployeeManagement() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="salary">Monthly Salary (₹)</Label>
+                    <Label htmlFor="salary">Monthly Salary (Rs)</Label>
                     <Input
                       id="salary"
                       type="number"
@@ -591,7 +591,7 @@ export function EmployeeManagement() {
             <CardTitle className="text-sm font-medium">Monthly Salary Cost</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{totalMonthlySalary.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Rs{totalMonthlySalary.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Base salaries</p>
           </CardContent>
         </Card>
@@ -601,7 +601,7 @@ export function EmployeeManagement() {
             <CardTitle className="text-sm font-medium">Monthly Commission</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{totalMonthlyCommission.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Rs{totalMonthlyCommission.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Performance based</p>
           </CardContent>
         </Card>
@@ -689,7 +689,7 @@ export function EmployeeManagement() {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">₹{employee.salary.toLocaleString()}</p>
+                            <p className="font-medium">Rs{employee.salary.toLocaleString()}</p>
                             <p className="text-xs text-muted-foreground">{employee.commission}% commission</p>
                           </div>
                         </TableCell>
@@ -703,7 +703,7 @@ export function EmployeeManagement() {
                             </div>
                             <Progress value={employee.performanceScore} className="h-2" />
                             <p className="text-xs text-muted-foreground">
-                              Sales: ₹{employee.monthlySales.toLocaleString()}
+                              Sales: Rs{employee.monthlySales.toLocaleString()}
                             </p>
                           </div>
                         </TableCell>
@@ -810,12 +810,12 @@ export function EmployeeManagement() {
                           <p className="font-medium">{record.employeeName}</p>
                         </TableCell>
                         <TableCell>{record.month}</TableCell>
-                        <TableCell>₹{record.basicSalary.toLocaleString()}</TableCell>
-                        <TableCell>₹{record.commission.toLocaleString()}</TableCell>
-                        <TableCell>₹{record.bonus.toLocaleString()}</TableCell>
-                        <TableCell>₹{record.deductions.toLocaleString()}</TableCell>
+                        <TableCell>Rs{record.basicSalary.toLocaleString()}</TableCell>
+                        <TableCell>Rs{record.commission.toLocaleString()}</TableCell>
+                        <TableCell>Rs{record.bonus.toLocaleString()}</TableCell>
+                        <TableCell>Rs{record.deductions.toLocaleString()}</TableCell>
                         <TableCell>
-                          <span className="font-medium">₹{record.totalSalary.toLocaleString()}</span>
+                          <span className="font-medium">Rs{record.totalSalary.toLocaleString()}</span>
                         </TableCell>
                         <TableCell>
                           <Badge
@@ -874,10 +874,10 @@ export function EmployeeManagement() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Monthly Sales</p>
-                      <p className="text-lg font-bold">₹{employee.monthlySales.toLocaleString()}</p>
+                      <p className="text-lg font-bold">Rs{employee.monthlySales.toLocaleString()}</p>
                       <Progress value={(employee.monthlySales / employee.monthlyTarget) * 100} className="h-2 mt-1" />
                       <p className="text-xs text-muted-foreground">
-                        Target: ₹{employee.monthlyTarget.toLocaleString()}
+                        Target: Rs{employee.monthlyTarget.toLocaleString()}
                       </p>
                     </div>
                     <div>
@@ -896,7 +896,7 @@ export function EmployeeManagement() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Total Commission</p>
-                      <p className="text-lg font-bold">₹{employee.totalCommission.toLocaleString()}</p>
+                      <p className="text-lg font-bold">Rs{employee.totalCommission.toLocaleString()}</p>
                     </div>
                   </div>
 

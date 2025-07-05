@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Dashboard } from "@/components/dashboard"
 import { POSModule } from "@/components/pos-module"
 import { ProductManagement } from "@/components/product-management"
@@ -13,6 +14,7 @@ import { EmployeeManagement } from "@/components/employee-management"
 import { ReportsModule } from "@/components/reports-module"
 import { DisposalModule } from "@/components/disposal-module"
 import { SalesLedger } from "@/components/sales-ledger"
+import { Button } from "@/components/ui/button"
 
 export default function ERPSystem() {
   const [activeModule, setActiveModule] = useState("dashboard")
@@ -48,9 +50,19 @@ export default function ERPSystem() {
     <SidebarProvider>
       <AppSidebar activeModule={activeModule} setActiveModule={setActiveModule} />
       <main className="flex-1 overflow-hidden">
-        <div className="flex h-14 items-center border-b px-4 lg:px-6">
-          <SidebarTrigger />
-          <h1 className="ml-4 text-lg font-semibold">Power Project ERP + POS System</h1>
+        <div className="flex h-14 items-center justify-between border-b px-4 lg:px-6">
+          <div className="flex items-center">
+            <SidebarTrigger />
+            <h1 className="ml-4 text-lg font-semibold">Power Project ERP + POS System</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/sign-in">Sign In</Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link href="/sign-up">Sign Up</Link>
+            </Button>
+          </div>
         </div>
         <div className="flex-1 overflow-auto p-4 lg:p-6">{renderModule()}</div>
       </main>

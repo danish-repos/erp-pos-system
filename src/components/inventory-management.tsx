@@ -393,7 +393,7 @@ export function InventoryManagement() {
             <CardTitle className="text-sm font-medium">Inventory Value</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{totalInventoryValue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Rs{totalInventoryValue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">At current prices</p>
           </CardContent>
         </Card>
@@ -520,8 +520,8 @@ export function InventoryManagement() {
                           </TableCell>
                           <TableCell>
                             <div className="text-sm">
-                              <p>₹{(item.currentStock * item.salePrice).toLocaleString()}</p>
-                              <p className="text-muted-foreground">@₹{item.salePrice}</p>
+                              <p>Rs{(item.currentStock * item.salePrice).toLocaleString()}</p>
+                              <p className="text-muted-foreground">@Rs{item.salePrice}</p>
                             </div>
                           </TableCell>
                           <TableCell>

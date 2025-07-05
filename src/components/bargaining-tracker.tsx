@@ -214,7 +214,7 @@ export function BargainingTracker() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">₹{totalDiscountGiven.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-red-600">Rs{totalDiscountGiven.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">This month</p>
           </CardContent>
         </Card>
@@ -359,13 +359,13 @@ export function BargainingTracker() {
                               </Badge>
                             </div>
                           </TableCell>
-                          <TableCell>₹{record.originalPrice.toLocaleString()}</TableCell>
+                          <TableCell>Rs{record.originalPrice.toLocaleString()}</TableCell>
                           <TableCell>
-                            <span className="font-medium">₹{record.finalPrice.toLocaleString()}</span>
+                            <span className="font-medium">Rs{record.finalPrice.toLocaleString()}</span>
                           </TableCell>
                           <TableCell>
                             <div>
-                              <p className="font-medium text-red-600">-₹{record.discountAmount}</p>
+                              <p className="font-medium text-red-600">-Rs{record.discountAmount}</p>
                               <Badge variant={discountSeverity.color as any} className="text-xs">
                                 {record.discountPercentage.toFixed(1)}%
                               </Badge>
@@ -427,11 +427,11 @@ export function BargainingTracker() {
                     <div className="grid grid-cols-3 gap-4 text-sm">
                       <div>
                         <p className="text-muted-foreground">Total Discount Given</p>
-                        <p className="font-medium text-red-600">₹{staff.totalDiscount.toLocaleString()}</p>
+                        <p className="font-medium text-red-600">Rs{staff.totalDiscount.toLocaleString()}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Average Discount</p>
-                        <p className="font-medium">₹{staff.averageDiscount.toFixed(0)}</p>
+                        <p className="font-medium">Rs{staff.averageDiscount.toFixed(0)}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Performance</p>
@@ -476,11 +476,11 @@ export function BargainingTracker() {
                     <div className="grid grid-cols-3 gap-4 text-sm">
                       <div>
                         <p className="text-muted-foreground">Total Discount</p>
-                        <p className="font-medium text-red-600">₹{product.totalDiscount.toLocaleString()}</p>
+                        <p className="font-medium text-red-600">Rs{product.totalDiscount.toLocaleString()}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Avg Discount</p>
-                        <p className="font-medium">₹{product.averageDiscount.toFixed(0)}</p>
+                        <p className="font-medium">Rs{product.averageDiscount.toFixed(0)}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Bargain Rate</p>

@@ -279,7 +279,7 @@ export function SalesLedger() {
             <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{totalSales.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Rs{totalSales.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">{salesRecords.length} transactions</p>
           </CardContent>
         </Card>
@@ -289,7 +289,7 @@ export function SalesLedger() {
             <CardTitle className="text-sm font-medium">Total Discount</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">₹{totalDiscount.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-red-600">Rs{totalDiscount.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               {((totalDiscount / (totalSales + totalDiscount)) * 100).toFixed(1)}% of gross sales
             </p>
@@ -424,9 +424,9 @@ export function SalesLedger() {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">₹{record.total.toLocaleString()}</p>
+                            <p className="font-medium">Rs{record.total.toLocaleString()}</p>
                             {record.discount > 0 && (
-                              <p className="text-xs text-red-600">-₹{record.discount.toLocaleString()} discount</p>
+                              <p className="text-xs text-red-600">-Rs{record.discount.toLocaleString()} discount</p>
                             )}
                           </div>
                         </TableCell>
@@ -503,7 +503,7 @@ export function SalesLedger() {
                         <p className="text-sm">{record.customerName}</p>
                         <p className="text-sm text-muted-foreground">{record.deliveryAddress}</p>
                         <p className="text-xs text-muted-foreground">
-                          Expected: {record.deliveryDate} • ₹{record.total.toLocaleString()}
+                          Expected: {record.deliveryDate} • Rs{record.total.toLocaleString()}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -545,7 +545,7 @@ export function SalesLedger() {
                         <p className="text-sm">{record.customerName}</p>
                         <p className="text-sm text-muted-foreground">{record.customerPhone}</p>
                         <p className="text-xs text-muted-foreground">
-                          Sale Date: {record.date} • Amount: ₹{record.total.toLocaleString()}
+                          Sale Date: {record.date} • Amount: Rs{record.total.toLocaleString()}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -611,7 +611,7 @@ export function SalesLedger() {
                         <p className="text-sm text-muted-foreground">{data.customer.customerPhone}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">₹{data.totalAmount.toLocaleString()}</p>
+                        <p className="font-medium">Rs{data.totalAmount.toLocaleString()}</p>
                         <p className="text-sm text-muted-foreground">{data.totalPurchases} purchases</p>
                       </div>
                     </div>
@@ -622,7 +622,7 @@ export function SalesLedger() {
                       </div>
                       <div>
                         <p className="text-muted-foreground">Average Order</p>
-                        <p>₹{Math.round(data.totalAmount / data.totalPurchases).toLocaleString()}</p>
+                        <p>Rs{Math.round(data.totalAmount / data.totalPurchases).toLocaleString()}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Customer Since</p>

@@ -297,7 +297,7 @@ export function CreditDebitLedger() {
                           .filter((e) => e.remainingAmount > 0)
                           .map((entry) => (
                             <SelectItem key={entry.id} value={entry.id}>
-                              {entry.customerName} - ₹{entry.remainingAmount.toLocaleString()}
+                              {entry.customerName} - Rs{entry.remainingAmount.toLocaleString()}
                             </SelectItem>
                           ))}
                       </optgroup>
@@ -306,7 +306,7 @@ export function CreditDebitLedger() {
                           .filter((e) => e.remainingAmount > 0)
                           .map((entry) => (
                             <SelectItem key={entry.id} value={entry.id}>
-                              {entry.supplierName} - ₹{entry.remainingAmount.toLocaleString()}
+                              {entry.supplierName} - Rs{entry.remainingAmount.toLocaleString()}
                             </SelectItem>
                           ))}
                       </optgroup>
@@ -321,7 +321,7 @@ export function CreditDebitLedger() {
                         {"customerName" in selectedEntry ? selectedEntry.customerName : selectedEntry.supplierName}
                       </strong>
                     </p>
-                    <p className="text-sm">Outstanding: ₹{selectedEntry.remainingAmount.toLocaleString()}</p>
+                    <p className="text-sm">Outstanding: Rs{selectedEntry.remainingAmount.toLocaleString()}</p>
                   </div>
                 )}
 
@@ -392,7 +392,7 @@ export function CreditDebitLedger() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">₹{totalCredit.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-green-600">Rs{totalCredit.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">{creditEntries.length} customers</p>
           </CardContent>
         </Card>
@@ -405,7 +405,7 @@ export function CreditDebitLedger() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">₹{totalDebit.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-red-600">Rs{totalDebit.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">{debitEntries.length} suppliers</p>
           </CardContent>
         </Card>
@@ -416,7 +416,7 @@ export function CreditDebitLedger() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${totalCredit - totalDebit >= 0 ? "text-green-600" : "text-red-600"}`}>
-              ₹{Math.abs(totalCredit - totalDebit).toLocaleString()}
+              Rs{Math.abs(totalCredit - totalDebit).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
               {totalCredit - totalDebit >= 0 ? "Net Receivable" : "Net Payable"}
@@ -484,10 +484,10 @@ export function CreditDebitLedger() {
                               <p className="text-xs text-muted-foreground">Sale: {entry.saleDate}</p>
                             </div>
                           </TableCell>
-                          <TableCell>₹{entry.amount.toLocaleString()}</TableCell>
-                          <TableCell>₹{entry.paidAmount.toLocaleString()}</TableCell>
+                          <TableCell>Rs{entry.amount.toLocaleString()}</TableCell>
+                          <TableCell>Rs{entry.paidAmount.toLocaleString()}</TableCell>
                           <TableCell>
-                            <span className="font-medium">₹{entry.remainingAmount.toLocaleString()}</span>
+                            <span className="font-medium">Rs{entry.remainingAmount.toLocaleString()}</span>
                           </TableCell>
                           <TableCell>
                             <div>
@@ -579,10 +579,10 @@ export function CreditDebitLedger() {
                               </Badge>
                             </div>
                           </TableCell>
-                          <TableCell>₹{entry.amount.toLocaleString()}</TableCell>
-                          <TableCell>₹{entry.paidAmount.toLocaleString()}</TableCell>
+                          <TableCell>Rs{entry.amount.toLocaleString()}</TableCell>
+                          <TableCell>Rs{entry.paidAmount.toLocaleString()}</TableCell>
                           <TableCell>
-                            <span className="font-medium">₹{entry.remainingAmount.toLocaleString()}</span>
+                            <span className="font-medium">Rs{entry.remainingAmount.toLocaleString()}</span>
                           </TableCell>
                           <TableCell>
                             <div>
@@ -638,7 +638,7 @@ export function CreditDebitLedger() {
                         <div>
                           <p className="font-medium">{entry.customerName}</p>
                           <p className="text-sm text-muted-foreground">
-                            ₹{entry.remainingAmount.toLocaleString()} • {daysOverdue} days overdue
+                            Rs{entry.remainingAmount.toLocaleString()} • {daysOverdue} days overdue
                           </p>
                         </div>
                         <div className="flex gap-1">
@@ -675,7 +675,7 @@ export function CreditDebitLedger() {
                         <div>
                           <p className="font-medium">{entry.supplierName}</p>
                           <p className="text-sm text-muted-foreground">
-                            ₹{entry.remainingAmount.toLocaleString()} • {daysOverdue} days overdue
+                            Rs{entry.remainingAmount.toLocaleString()} • {daysOverdue} days overdue
                           </p>
                         </div>
                         <Button size="sm" variant="destructive">

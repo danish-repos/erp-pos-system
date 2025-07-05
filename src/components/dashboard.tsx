@@ -48,7 +48,7 @@ export function Dashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{salesData.today.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Rs{salesData.today.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               <TrendingUp className="inline h-3 w-3 text-green-500" /> +
               {Math.round(((salesData.today - salesData.yesterday) / salesData.yesterday) * 100)}% from yesterday
@@ -62,7 +62,7 @@ export function Dashboard() {
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{salesData.month.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Rs{salesData.month.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               <TrendingUp className="inline h-3 w-3 text-green-500" /> +
               {Math.round(((salesData.month - salesData.lastMonth) / salesData.lastMonth) * 100)}% from last month
@@ -76,7 +76,7 @@ export function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">₹45,230</div>
+            <div className="text-2xl font-bold text-orange-600">Rs45,230</div>
             <p className="text-xs text-muted-foreground">12 customers pending</p>
           </CardContent>
         </Card>
@@ -109,7 +109,7 @@ export function Dashboard() {
                 <div className="space-y-1">
                   <p className="text-sm font-medium">{item.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    ₹{item.originalPrice} → ₹{item.finalPrice}
+                    Rs{item.originalPrice} → Rs{item.finalPrice}
                   </p>
                 </div>
                 <Badge variant="destructive">{item.discount}% off</Badge>
@@ -163,8 +163,8 @@ export function Dashboard() {
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">{employee.name}</p>
                   <div className="text-right">
-                    <p className="text-sm font-medium">₹{employee.sales.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">Target: ₹{employee.target.toLocaleString()}</p>
+                    <p className="text-sm font-medium">Rs{employee.sales.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">Target: Rs{employee.target.toLocaleString()}</p>
                   </div>
                 </div>
                 <div className="space-y-1">
@@ -184,12 +184,12 @@ export function Dashboard() {
             <CardTitle className="text-sm font-medium">Disposal Loss (This Month)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">₹8,450</div>
+            <div className="text-2xl font-bold text-red-600">Rs8,450</div>
             <p className="text-xs text-muted-foreground">15 items disposed</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card>  
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Best Seller</CardTitle>
           </CardHeader>
