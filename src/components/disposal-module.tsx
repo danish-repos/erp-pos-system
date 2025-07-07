@@ -1,14 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -17,616 +19,674 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Trash2, Plus, AlertTriangle, FileText, Camera, Download, TrendingDown, Package, Eye } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Progress } from "@/components/ui/progress"
+import { Plus, Search, Package, DollarSign } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
-interface DisposalRecord {
+interface DisposalEntry {
   id: string
-  itemName: string
-  itemCode: string
+  productId: string
+  productName: string
+  productCode: string
   category: string
-  originalPrice: number
-  disposalValue: number
-  lossAmount: number
   quantity: number
-  disposalDate: string
-  reason: string
-  condition: "damaged" | "expired" | "defective" | "unsold" | "stolen"
+  originalPrice: number
+  totalValue: number
   disposalMethod: "discard" | "donate" | "sell-discount" | "return-supplier" | "recycle"
-  approvedBy: string
+  reason: "damaged" | "expired" | "defective" | "obsolete" | "customer-return" | "quality-issue"
+  disposalDate: string
+  staffMember: string
   notes: string
-  photos?: string[]
+  recoveredAmount?: number
+  supplierInfo?: string
   batchNumber?: string
-  supplierName?: string
+  createdAt: string
 }
 
-interface DisposalSummary {
+interface DisposalStats {
+  totalDisposed: number
   totalLoss: number
-  itemsDisposed: number
-  topReason: string
-  monthlyTrend: number
+  recoveredAmount: number
+  recoveryRate: number
+  monthlyDisposal: number
 }
 
 export function DisposalModule() {
-  const [disposalRecords, setDisposalRecords] = useState<DisposalRecord[]>([
-    {
-      id: "1",
-      itemName: "Cotton Kurta - Blue",
-      itemCode: "CK001",
-      category: "Kurtas",
-      originalPrice: 1200,
-      disposalValue: 0,
-      lossAmount: 1200,
-      quantity: 2,
-      disposalDate: "2024-01-15",
-      reason: "Fabric tear during handling",
-      condition: "damaged",
-      disposalMethod: "discard",
-      approvedBy: "Ahmed Ali",
-      notes: "Damaged during customer trial, irreparable tear",
-      batchNumber: "B2024001",
-      supplierName: "Textile Mills Ltd",
-    },
-    {
-      id: "2",
-      itemName: "Silk Dupatta - Red",
-      itemCode: "SD002",
-      category: "Dupatta",
-      originalPrice: 800,
-      disposalValue: 200,
-      lossAmount: 600,
-      quantity: 1,
-      disposalDate: "2024-01-18",
-      reason: "Color fading issue",
-      condition: "defective",
-      disposalMethod: "sell-discount",
-      approvedBy: "Fatima Khan",
-      notes: "Sold at 75% discount due to color bleeding",
-      batchNumber: "B2024002",
-      supplierName: "Silk Weavers Co",
-    },
-    {
-      id: "3",
-      itemName: "Linen Shirt - White",
-      itemCode: "LS003",
-      category: "Shirts",
-      originalPrice: 1500,
-      disposalValue: 0,
-      lossAmount: 1500,
-      quantity: 1,
-      disposalDate: "2024-01-20",
-      reason: "Theft from store",
-      condition: "stolen",
-      disposalMethod: "discard",
-      approvedBy: "Hassan Sheikh",
-      notes: "Item missing from inventory, suspected theft",
-      batchNumber: "B2024003",
-      supplierName: "Premium Fabrics",
-    },
-    {
-      id: "4",
-      itemName: "Cotton Pants - Black",
-      itemCode: "CP004",
-      category: "Pants",
-      originalPrice: 900,
-      disposalValue: 450,
-      lossAmount: 450,
-      quantity: 3,
-      disposalDate: "2024-01-22",
-      reason: "End of season clearance",
-      condition: "unsold",
-      disposalMethod: "sell-discount",
-      approvedBy: "Ahmed Ali",
-      notes: "Slow-moving inventory, cleared at 50% discount",
-      batchNumber: "B2024004",
-      supplierName: "Fashion Hub",
-    },
-  ])
-
+  const [disposalEntries, setDisposalEntries] = useState<DisposalEntry[]>([])
+  const [stats, setStats] = useState<DisposalStats>({
+    totalDisposed: 0,
+    totalLoss: 0,
+    recoveredAmount: 0,
+    recoveryRate: 0,
+    monthlyDisposal: 0,
+  })
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [methodFilter, setMethodFilter] = useState("all")
+  const [reasonFilter, setReasonFilter] = useState("all")
   const [isAddDisposalOpen, setIsAddDisposalOpen] = useState(false)
-  const [selectedRecord, setSelectedRecord] = useState<DisposalRecord | null>(null)
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const { toast } = useToast()
 
-  const [newDisposal, setNewDisposal] = useState({
-    itemName: "",
-    itemCode: "",
+  const [disposalForm, setDisposalForm] = useState({
+    productName: "",
+    productCode: "",
     category: "",
-    originalPrice: "",
-    disposalValue: "",
     quantity: "",
-    reason: "",
-    condition: "",
+    originalPrice: "",
     disposalMethod: "",
+    reason: "",
+    staffMember: "",
     notes: "",
+    recoveredAmount: "",
+    supplierInfo: "",
     batchNumber: "",
-    supplierName: "",
   })
 
-  const totalLoss = disposalRecords.reduce((sum, record) => sum + record.lossAmount * record.quantity, 0)
-  const totalItemsDisposed = disposalRecords.reduce((sum, record) => sum + record.quantity, 0)
-  const totalRecoveredValue = disposalRecords.reduce((sum, record) => sum + record.disposalValue * record.quantity, 0)
+  useEffect(() => {
+    loadDisposalData()
+  }, [])
 
-  // Group by reason for analysis
-  const reasonStats = disposalRecords.reduce(
-    (acc, record) => {
-      if (!acc[record.reason]) {
-        acc[record.reason] = { count: 0, loss: 0 }
+  const loadDisposalData = async () => {
+    try {
+      setLoading(true)
+      // Mock data - in real app, this would come from Firebase
+      const mockDisposals: DisposalEntry[] = [
+        {
+          id: "1",
+          productId: "prod1",
+          productName: "Cotton Kurta Set",
+          productCode: "CKS001",
+          category: "Kurtas",
+          quantity: 2,
+          originalPrice: 3500,
+          totalValue: 7000,
+          disposalMethod: "sell-discount",
+          reason: "damaged",
+          disposalDate: new Date().toISOString().split("T")[0],
+          staffMember: "Fatima Khan",
+          notes: "Minor stains, sold at 50% discount",
+          recoveredAmount: 3500,
+          batchNumber: "B001",
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: "2",
+          productId: "prod2",
+          productName: "Silk Dupatta",
+          productCode: "SD002",
+          category: "Dupatta",
+          quantity: 1,
+          originalPrice: 2500,
+          totalValue: 2500,
+          disposalMethod: "discard",
+          reason: "defective",
+          disposalDate: new Date(Date.now() - 86400000).toISOString().split("T")[0],
+          staffMember: "Ali Hassan",
+          notes: "Fabric tear, cannot be repaired",
+          batchNumber: "B002",
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+        },
+        {
+          id: "3",
+          productId: "prod3",
+          productName: "Designer Shirt",
+          productCode: "DS003",
+          category: "Shirts",
+          quantity: 3,
+          originalPrice: 4500,
+          totalValue: 13500,
+          disposalMethod: "donate",
+          reason: "obsolete",
+          disposalDate: new Date(Date.now() - 172800000).toISOString().split("T")[0],
+          staffMember: "Zara Ali",
+          notes: "Old design, donated to charity",
+          batchNumber: "B003",
+          createdAt: new Date(Date.now() - 172800000).toISOString(),
+        },
+      ]
+
+      setDisposalEntries(mockDisposals)
+
+      // Calculate stats
+      const totalDisposed = mockDisposals.reduce((sum, entry) => sum + entry.quantity, 0)
+      const totalLoss = mockDisposals.reduce((sum, entry) => sum + entry.totalValue, 0)
+      const recoveredAmount = mockDisposals.reduce((sum, entry) => sum + (entry.recoveredAmount || 0), 0)
+      const recoveryRate = totalLoss > 0 ? (recoveredAmount / totalLoss) * 100 : 0
+      const monthlyDisposal = mockDisposals.filter((entry) => {
+        const entryDate = new Date(entry.disposalDate)
+        const now = new Date()
+        return entryDate.getMonth() === now.getMonth() && entryDate.getFullYear() === now.getFullYear()
+      }).length
+
+      setStats({
+        totalDisposed,
+        totalLoss,
+        recoveredAmount,
+        recoveryRate,
+        monthlyDisposal,
+      })
+    } catch (error) {
+      console.error("Error loading disposal data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load disposal data. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddDisposal = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      const quantity = Number.parseInt(disposalForm.quantity)
+      const originalPrice = Number.parseFloat(disposalForm.originalPrice)
+      const totalValue = quantity * originalPrice
+      const recoveredAmount = disposalForm.recoveredAmount ? Number.parseFloat(disposalForm.recoveredAmount) : 0
+
+      const newDisposal: DisposalEntry = {
+        id: Date.now().toString(),
+        productId: `prod_${Date.now()}`,
+        productName: disposalForm.productName,
+        productCode: disposalForm.productCode,
+        category: disposalForm.category,
+        quantity,
+        originalPrice,
+        totalValue,
+        disposalMethod: disposalForm.disposalMethod as any,
+        reason: disposalForm.reason as any,
+        disposalDate: new Date().toISOString().split("T")[0],
+        staffMember: disposalForm.staffMember,
+        notes: disposalForm.notes,
+        recoveredAmount,
+        supplierInfo: disposalForm.supplierInfo,
+        batchNumber: disposalForm.batchNumber,
+        createdAt: new Date().toISOString(),
       }
-      acc[record.reason].count += record.quantity
-      acc[record.reason].loss += record.lossAmount * record.quantity
-      return acc
-    },
-    {} as Record<string, { count: number; loss: number }>,
-  )
 
-  // Group by condition
-  const conditionStats = disposalRecords.reduce(
-    (acc, record) => {
-      if (!acc[record.condition]) {
-        acc[record.condition] = { count: 0, loss: 0 }
-      }
-      acc[record.condition].count += record.quantity
-      acc[record.condition].loss += record.lossAmount * record.quantity
-      return acc
-    },
-    {} as Record<string, { count: number; loss: number }>,
-  )
+      setDisposalEntries((prev) => [newDisposal, ...prev])
 
-  const getConditionColor = (condition: string) => {
-    switch (condition) {
-      case "damaged":
-        return "destructive"
-      case "expired":
-        return "secondary"
-      case "defective":
-        return "outline"
-      case "unsold":
-        return "default"
-      case "stolen":
-        return "destructive"
-      default:
-        return "outline"
+      toast({
+        title: "Success",
+        description: "Disposal entry added successfully",
+      })
+
+      setIsAddDisposalOpen(false)
+      setDisposalForm({
+        productName: "",
+        productCode: "",
+        category: "",
+        quantity: "",
+        originalPrice: "",
+        disposalMethod: "",
+        reason: "",
+        staffMember: "",
+        notes: "",
+        recoveredAmount: "",
+        supplierInfo: "",
+        batchNumber: "",
+      })
+
+      loadDisposalData()
+    } catch (error) {
+      console.error("Error adding disposal:", error)
+      toast({
+        title: "Error",
+        description: "Failed to add disposal entry",
+        variant: "destructive",
+      })
     }
   }
 
   const getMethodColor = (method: string) => {
     switch (method) {
-      case "discard":
-        return "destructive"
-      case "donate":
-        return "default"
       case "sell-discount":
         return "secondary"
-      case "return-supplier":
+      case "donate":
         return "outline"
-      case "recycle":
+      case "return-supplier":
         return "default"
+      case "recycle":
+        return "outline"
+      case "discard":
+        return "destructive"
       default:
         return "outline"
     }
   }
 
-  const handleAddDisposal = () => {
-    const disposal: DisposalRecord = {
-      id: Date.now().toString(),
-      itemName: newDisposal.itemName,
-      itemCode: newDisposal.itemCode,
-      category: newDisposal.category,
-      originalPrice: Number(newDisposal.originalPrice),
-      disposalValue: Number(newDisposal.disposalValue),
-      lossAmount: Number(newDisposal.originalPrice) - Number(newDisposal.disposalValue),
-      quantity: Number(newDisposal.quantity),
-      disposalDate: new Date().toISOString().split("T")[0],
-      reason: newDisposal.reason,
-      condition: newDisposal.condition as any,
-      disposalMethod: newDisposal.disposalMethod as any,
-      approvedBy: "Current User",
-      notes: newDisposal.notes,
-      batchNumber: newDisposal.batchNumber,
-      supplierName: newDisposal.supplierName,
+  const getReasonColor = (reason: string) => {
+    switch (reason) {
+      case "damaged":
+        return "destructive"
+      case "expired":
+        return "destructive"
+      case "defective":
+        return "destructive"
+      case "obsolete":
+        return "secondary"
+      case "customer-return":
+        return "outline"
+      case "quality-issue":
+        return "destructive"
+      default:
+        return "outline"
     }
+  }
 
-    setDisposalRecords([disposal, ...disposalRecords])
-    setNewDisposal({
-      itemName: "",
-      itemCode: "",
-      category: "",
-      originalPrice: "",
-      disposalValue: "",
-      quantity: "",
-      reason: "",
-      condition: "",
-      disposalMethod: "",
-      notes: "",
-      batchNumber: "",
-      supplierName: "",
-    })
-    setIsAddDisposalOpen(false)
+  const filteredEntries = disposalEntries.filter((entry) => {
+    const matchesSearch =
+      entry.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.productCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.category.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesMethod = methodFilter === "all" || entry.disposalMethod === methodFilter
+    const matchesReason = reasonFilter === "all" || entry.reason === reasonFilter
+    return matchesSearch && matchesMethod && matchesReason
+  })
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64">Loading...</div>
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Disposal Management</h2>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export Report
-          </Button>
-          <Dialog open={isAddDisposalOpen} onOpenChange={setIsAddDisposalOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Record Disposal
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Record Item Disposal</DialogTitle>
-                <DialogDescription>Document the disposal of damaged, expired, or unsold items</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="itemName">Item Name</Label>
-                    <Input
-                      id="itemName"
-                      value={newDisposal.itemName}
-                      onChange={(e) => setNewDisposal({ ...newDisposal, itemName: e.target.value })}
-                      placeholder="Cotton Kurta - Blue"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="itemCode">Item Code</Label>
-                    <Input
-                      id="itemCode"
-                      value={newDisposal.itemCode}
-                      onChange={(e) => setNewDisposal({ ...newDisposal, itemCode: e.target.value })}
-                      placeholder="CK001"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="category">Category</Label>
-                    <Select
-                      value={newDisposal.category}
-                      onValueChange={(value) => setNewDisposal({ ...newDisposal, category: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Kurtas">Kurtas</SelectItem>
-                        <SelectItem value="Dupatta">Dupatta</SelectItem>
-                        <SelectItem value="Shirts">Shirts</SelectItem>
-                        <SelectItem value="Pants">Pants</SelectItem>
-                        <SelectItem value="Accessories">Accessories</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      value={newDisposal.quantity}
-                      onChange={(e) => setNewDisposal({ ...newDisposal, quantity: e.target.value })}
-                      placeholder="1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="originalPrice">Original Price (Rs)</Label>
-                    <Input
-                      id="originalPrice"
-                      type="number"
-                      value={newDisposal.originalPrice}
-                      onChange={(e) => setNewDisposal({ ...newDisposal, originalPrice: e.target.value })}
-                      placeholder="1200"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="condition">Condition</Label>
-                    <Select
-                      value={newDisposal.condition}
-                      onValueChange={(value) => setNewDisposal({ ...newDisposal, condition: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select condition" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="damaged">Damaged</SelectItem>
-                        <SelectItem value="expired">Expired</SelectItem>
-                        <SelectItem value="defective">Defective</SelectItem>
-                        <SelectItem value="unsold">Unsold</SelectItem>
-                        <SelectItem value="stolen">Stolen</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="disposalMethod">Disposal Method</Label>
-                    <Select
-                      value={newDisposal.disposalMethod}
-                      onValueChange={(value) => setNewDisposal({ ...newDisposal, disposalMethod: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select method" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="discard">Discard</SelectItem>
-                        <SelectItem value="donate">Donate</SelectItem>
-                        <SelectItem value="sell-discount">Sell at Discount</SelectItem>
-                        <SelectItem value="return-supplier">Return to Supplier</SelectItem>
-                        <SelectItem value="recycle">Recycle</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="disposalValue">Recovery Value (Rs)</Label>
-                    <Input
-                      id="disposalValue"
-                      type="number"
-                      value={newDisposal.disposalValue}
-                      onChange={(e) => setNewDisposal({ ...newDisposal, disposalValue: e.target.value })}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="batchNumber">Batch Number</Label>
-                    <Input
-                      id="batchNumber"
-                      value={newDisposal.batchNumber}
-                      onChange={(e) => setNewDisposal({ ...newDisposal, batchNumber: e.target.value })}
-                      placeholder="B2024001"
-                    />
-                  </div>
-                </div>
-
+        <Dialog open={isAddDisposalOpen} onOpenChange={setIsAddDisposalOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Disposal
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Add Disposal Entry</DialogTitle>
+              <DialogDescription>Record disposal of inventory items</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAddDisposal} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="reason">Disposal Reason</Label>
+                  <Label htmlFor="productName">Product Name</Label>
                   <Input
-                    id="reason"
-                    value={newDisposal.reason}
-                    onChange={(e) => setNewDisposal({ ...newDisposal, reason: e.target.value })}
-                    placeholder="Fabric tear during handling"
+                    id="productName"
+                    value={disposalForm.productName}
+                    onChange={(e) => setDisposalForm({ ...disposalForm, productName: e.target.value })}
+                    required
                   />
                 </div>
-
                 <div>
-                  <Label htmlFor="supplierName">Supplier Name</Label>
+                  <Label htmlFor="productCode">Product Code</Label>
                   <Input
-                    id="supplierName"
-                    value={newDisposal.supplierName}
-                    onChange={(e) => setNewDisposal({ ...newDisposal, supplierName: e.target.value })}
-                    placeholder="Textile Mills Ltd"
+                    id="productCode"
+                    value={disposalForm.productCode}
+                    onChange={(e) => setDisposalForm({ ...disposalForm, productCode: e.target.value })}
+                    required
                   />
-                </div>
-
-                <div>
-                  <Label htmlFor="notes">Additional Notes</Label>
-                  <Textarea
-                    id="notes"
-                    value={newDisposal.notes}
-                    onChange={(e) => setNewDisposal({ ...newDisposal, notes: e.target.value })}
-                    placeholder="Detailed description of the disposal reason and circumstances"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsAddDisposalOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddDisposal}>Record Disposal</Button>
                 </div>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="category">Category</Label>
+                  <Select
+                    value={disposalForm.category}
+                    onValueChange={(value) => setDisposalForm({ ...disposalForm, category: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Kurtas">Kurtas</SelectItem>
+                      <SelectItem value="Dupatta">Dupatta</SelectItem>
+                      <SelectItem value="Shirts">Shirts</SelectItem>
+                      <SelectItem value="Pants">Pants</SelectItem>
+                      <SelectItem value="Accessories">Accessories</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="quantity">Quantity</Label>
+                  <Input
+                    id="quantity"
+                    type="number"
+                    value={disposalForm.quantity}
+                    onChange={(e) => setDisposalForm({ ...disposalForm, quantity: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="originalPrice">Original Price (per unit)</Label>
+                  <Input
+                    id="originalPrice"
+                    type="number"
+                    value={disposalForm.originalPrice}
+                    onChange={(e) => setDisposalForm({ ...disposalForm, originalPrice: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="disposalMethod">Disposal Method</Label>
+                  <Select
+                    value={disposalForm.disposalMethod}
+                    onValueChange={(value) => setDisposalForm({ ...disposalForm, disposalMethod: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="discard">Discard</SelectItem>
+                      <SelectItem value="donate">Donate</SelectItem>
+                      <SelectItem value="sell-discount">Sell at Discount</SelectItem>
+                      <SelectItem value="return-supplier">Return to Supplier</SelectItem>
+                      <SelectItem value="recycle">Recycle</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="reason">Reason</Label>
+                  <Select
+                    value={disposalForm.reason}
+                    onValueChange={(value) => setDisposalForm({ ...disposalForm, reason: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select reason" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="damaged">Damaged</SelectItem>
+                      <SelectItem value="expired">Expired</SelectItem>
+                      <SelectItem value="defective">Defective</SelectItem>
+                      <SelectItem value="obsolete">Obsolete</SelectItem>
+                      <SelectItem value="customer-return">Customer Return</SelectItem>
+                      <SelectItem value="quality-issue">Quality Issue</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="staffMember">Staff Member</Label>
+                  <Input
+                    id="staffMember"
+                    value={disposalForm.staffMember}
+                    onChange={(e) => setDisposalForm({ ...disposalForm, staffMember: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="recoveredAmount">Recovered Amount (if any)</Label>
+                  <Input
+                    id="recoveredAmount"
+                    type="number"
+                    value={disposalForm.recoveredAmount}
+                    onChange={(e) => setDisposalForm({ ...disposalForm, recoveredAmount: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="batchNumber">Batch Number</Label>
+                  <Input
+                    id="batchNumber"
+                    value={disposalForm.batchNumber}
+                    onChange={(e) => setDisposalForm({ ...disposalForm, batchNumber: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="supplierInfo">Supplier Info (if returning)</Label>
+                <Input
+                  id="supplierInfo"
+                  value={disposalForm.supplierInfo}
+                  onChange={(e) => setDisposalForm({ ...disposalForm, supplierInfo: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={disposalForm.notes}
+                  onChange={(e) => setDisposalForm({ ...disposalForm, notes: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsAddDisposalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">Add Disposal</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-red-500" />
-              Total Loss
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total Disposed</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">Rs{totalLoss.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">This month</p>
+            <div className="text-2xl font-bold">{stats.totalDisposed}</div>
+            <p className="text-xs text-muted-foreground">Items disposed</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Items Disposed</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Loss</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalItemsDisposed}</div>
-            <p className="text-xs text-muted-foreground">Total units</p>
+            <div className="text-2xl font-bold text-red-600">₹{stats.totalLoss.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Value lost</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Recovery Value</CardTitle>
+            <CardTitle className="text-sm font-medium">Recovered Amount</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">Rs{totalRecoveredValue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Recovered amount</p>
+            <div className="text-2xl font-bold text-green-600">₹{stats.recoveredAmount.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Amount recovered</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Loss Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">Recovery Rate</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {totalRecoveredValue > 0 ? ((totalLoss / (totalLoss + totalRecoveredValue)) * 100).toFixed(1) : "100.0"}%
-            </div>
-            <p className="text-xs text-muted-foreground">Of disposal value</p>
+            <div className="text-2xl font-bold">{stats.recoveryRate.toFixed(1)}%</div>
+            <p className="text-xs text-muted-foreground">Of total loss</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">This Month</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.monthlyDisposal}</div>
+            <p className="text-xs text-muted-foreground">Disposal entries</p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="records" className="space-y-4">
+      <Tabs defaultValue="all-disposals" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="records">Disposal Records</TabsTrigger>
-          <TabsTrigger value="analysis">Loss Analysis</TabsTrigger>
-          <TabsTrigger value="prevention">Prevention Insights</TabsTrigger>
+          <TabsTrigger value="all-disposals">All Disposals</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="recovery">Recovery Tracking</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="records" className="space-y-4">
+        <TabsContent value="all-disposals" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Trash2 className="h-5 w-5" />
-                Disposal Records
+                <Search className="h-5 w-5" />
+                Search & Filter
               </CardTitle>
-              <CardDescription>Complete log of all disposed items with reasons and recovery values</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Item Details</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Original Value</TableHead>
-                      <TableHead>Recovery Value</TableHead>
-                      <TableHead>Loss Amount</TableHead>
-                      <TableHead>Condition</TableHead>
-                      <TableHead>Method</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {disposalRecords.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{record.itemName}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {record.itemCode} • {record.category}
-                            </p>
-                            <p className="text-xs text-muted-foreground">Batch: {record.batchNumber}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>{record.quantity}</TableCell>
-                        <TableCell>Rs{(record.originalPrice * record.quantity).toLocaleString()}</TableCell>
-                        <TableCell>Rs{(record.disposalValue * record.quantity).toLocaleString()}</TableCell>
-                        <TableCell>
-                          <span className="font-medium text-red-600">
-                            Rs{(record.lossAmount * record.quantity).toLocaleString()}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getConditionColor(record.condition) as any}>{record.condition}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getMethodColor(record.disposalMethod) as any}>
-                            {record.disposalMethod.replace("-", " ")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{record.disposalDate}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedRecord(record)
-                                setIsViewDialogOpen(true)
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="outline">
-                              <Camera className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Search by product name, code, or category..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <Select value={methodFilter} onValueChange={setMethodFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Methods</SelectItem>
+                    <SelectItem value="discard">Discard</SelectItem>
+                    <SelectItem value="donate">Donate</SelectItem>
+                    <SelectItem value="sell-discount">Sell at Discount</SelectItem>
+                    <SelectItem value="return-supplier">Return to Supplier</SelectItem>
+                    <SelectItem value="recycle">Recycle</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={reasonFilter} onValueChange={setReasonFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Reasons</SelectItem>
+                    <SelectItem value="damaged">Damaged</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
+                    <SelectItem value="defective">Defective</SelectItem>
+                    <SelectItem value="obsolete">Obsolete</SelectItem>
+                    <SelectItem value="customer-return">Customer Return</SelectItem>
+                    <SelectItem value="quality-issue">Quality Issue</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Disposal Records</CardTitle>
+              <CardDescription>Complete history of disposed inventory</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Original Value</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Recovered</TableHead>
+                    <TableHead>Loss</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Staff</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredEntries.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{entry.productName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {entry.productCode} • {entry.category}
+                          </p>
+                          {entry.batchNumber && (
+                            <p className="text-xs text-muted-foreground">Batch: {entry.batchNumber}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>{entry.quantity}</TableCell>
+                      <TableCell>₹{entry.totalValue.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={getMethodColor(entry.disposalMethod) as any}>
+                          {entry.disposalMethod.replace("-", " ").toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getReasonColor(entry.reason) as any}>
+                          {entry.reason.replace("-", " ").toUpperCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-green-600">₹{(entry.recoveredAmount || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-red-600">
+                        ₹{(entry.totalValue - (entry.recoveredAmount || 0)).toLocaleString()}
+                      </TableCell>
+                      <TableCell>{entry.disposalDate}</TableCell>
+                      <TableCell>{entry.staffMember}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="analysis" className="space-y-4">
+        <TabsContent value="analytics" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5" />
-                  Loss by Reason
-                </CardTitle>
-                <CardDescription>Analysis of disposal reasons and their financial impact</CardDescription>
+                <CardTitle>Disposal by Method</CardTitle>
+                <CardDescription>Breakdown of disposal methods used</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {Object.entries(reasonStats).map(([reason, stats]) => (
+                  {Object.entries(
+                    disposalEntries.reduce(
+                      (acc, entry) => {
+                        acc[entry.disposalMethod] = (acc[entry.disposalMethod] || 0) + 1
+                        return acc
+                      },
+                      {} as Record<string, number>,
+                    ),
+                  ).map(([method, count]) => (
+                    <div key={method} className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="capitalize">{method.replace("-", " ")}</span>
+                        <span className="font-medium">{count} items</span>
+                      </div>
+                      <Progress
+                        value={disposalEntries.length > 0 ? (count / disposalEntries.length) * 100 : 0}
+                        className="h-2"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Disposal by Reason</CardTitle>
+                <CardDescription>Common reasons for disposal</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {Object.entries(
+                    disposalEntries.reduce(
+                      (acc, entry) => {
+                        acc[entry.reason] = (acc[entry.reason] || 0) + 1
+                        return acc
+                      },
+                      {} as Record<string, number>,
+                    ),
+                  ).map(([reason, count]) => (
                     <div key={reason} className="space-y-2">
                       <div className="flex justify-between">
-                        <span className="font-medium">{reason}</span>
-                        <span className="text-red-600">Rs{stats.loss.toLocaleString()}</span>
+                        <span className="capitalize">{reason.replace("-", " ")}</span>
+                        <span className="font-medium">{count} items</span>
                       </div>
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>{stats.count} items</span>
-                        <span>{((stats.loss / totalLoss) * 100).toFixed(1)}% of total loss</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-red-500 h-2 rounded-full"
-                          style={{ width: `${(stats.loss / totalLoss) * 100}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="h-5 w-5" />
-                  Loss by Condition
-                </CardTitle>
-                <CardDescription>Breakdown of disposal conditions and their costs</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {Object.entries(conditionStats).map(([condition, stats]) => (
-                    <div key={condition} className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="font-medium capitalize">{condition}</span>
-                        <span className="text-red-600">Rs{stats.loss.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>{stats.count} items</span>
-                        <span>{((stats.loss / totalLoss) * 100).toFixed(1)}% of total loss</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-orange-500 h-2 rounded-full"
-                          style={{ width: `${(stats.loss / totalLoss) * 100}%` }}
-                        ></div>
-                      </div>
+                      <Progress
+                        value={disposalEntries.length > 0 ? (count / disposalEntries.length) * 100 : 0}
+                        className="h-2"
+                      />
                     </div>
                   ))}
                 </div>
@@ -636,209 +696,113 @@ export function DisposalModule() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Monthly Disposal Trend</CardTitle>
-              <CardDescription>Track disposal patterns over time</CardDescription>
+              <CardTitle>Category-wise Loss Analysis</CardTitle>
+              <CardDescription>Financial impact by product category</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium">This Month</h3>
-                  <p className="text-2xl font-bold text-red-600">Rs{totalLoss.toLocaleString()}</p>
-                  <p className="text-sm text-muted-foreground">{totalItemsDisposed} items disposed</p>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium">Last Month</h3>
-                  <p className="text-2xl font-bold">Rs{(totalLoss * 0.8).toLocaleString()}</p>
-                  <p className="text-sm text-muted-foreground">{Math.round(totalItemsDisposed * 0.8)} items disposed</p>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium">Trend</h3>
-                  <p className="text-2xl font-bold text-red-600">+25%</p>
-                  <p className="text-sm text-muted-foreground">Increase in disposal loss</p>
-                </div>
+              <div className="space-y-4">
+                {Object.entries(
+                  disposalEntries.reduce(
+                    (acc, entry) => {
+                      if (!acc[entry.category]) {
+                        acc[entry.category] = {
+                          totalValue: 0,
+                          recovered: 0,
+                          count: 0,
+                        }
+                      }
+                      acc[entry.category].totalValue += entry.totalValue
+                      acc[entry.category].recovered += entry.recoveredAmount || 0
+                      acc[entry.category].count += entry.quantity
+                      return acc
+                    },
+                    {} as Record<string, any>,
+                  ),
+                ).map(([category, data]) => (
+                  <div key={category} className="p-4 border rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-medium">{category}</h3>
+                      <Badge variant="outline">{data.count} items</Badge>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Total Value</p>
+                        <p className="font-medium">₹{data.totalValue.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Recovered</p>
+                        <p className="font-medium text-green-600">₹{data.recovered.toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Net Loss</p>
+                        <p className="font-medium text-red-600">
+                          ₹{(data.totalValue - data.recovered).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                        <span>Recovery Rate</span>
+                        <span>{((data.recovered / data.totalValue) * 100).toFixed(1)}%</span>
+                      </div>
+                      <Progress value={(data.recovered / data.totalValue) * 100} className="h-2" />
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="prevention" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-600">
-                  <AlertTriangle className="h-5 w-5" />
-                  High Risk Areas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-sm font-medium text-red-800">Handling Damage</p>
-                    <p className="text-xs text-red-600">
-                      40% of disposals due to handling issues - implement better training
-                    </p>
-                  </div>
-                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                    <p className="text-sm font-medium text-orange-800">Slow-Moving Inventory</p>
-                    <p className="text-xs text-orange-600">
-                      25% of disposals from unsold items - review purchasing patterns
-                    </p>
-                  </div>
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm font-medium text-yellow-800">Quality Control</p>
-                    <p className="text-xs text-yellow-600">
-                      20% from defective items - strengthen supplier quality checks
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-600">
-                  <FileText className="h-5 w-5" />
-                  Prevention Strategies
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-sm font-medium text-green-800">Staff Training</p>
-                    <p className="text-xs text-green-600">
-                      Implement proper handling procedures to reduce damage by 50%
-                    </p>
-                  </div>
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm font-medium text-blue-800">Inventory Rotation</p>
-                    <p className="text-xs text-blue-600">
-                      FIFO system and regular promotions to reduce unsold inventory
-                    </p>
-                  </div>
-                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                    <p className="text-sm font-medium text-purple-800">Quality Assurance</p>
-                    <p className="text-xs text-purple-600">Enhanced supplier audits and incoming quality checks</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
+        <TabsContent value="recovery" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Cost Reduction Opportunities</CardTitle>
-              <CardDescription>Potential savings through improved processes</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Recovery Tracking
+              </CardTitle>
+              <CardDescription>Items with potential for value recovery</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium">Better Handling</h3>
-                  <p className="text-2xl font-bold text-green-600">Rs15,000</p>
-                  <p className="text-sm text-muted-foreground">Potential monthly savings</p>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium">Faster Clearance</h3>
-                  <p className="text-2xl font-bold text-green-600">Rs8,000</p>
-                  <p className="text-sm text-muted-foreground">From better inventory management</p>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium">Quality Improvement</h3>
-                  <p className="text-2xl font-bold text-green-600">Rs12,000</p>
-                  <p className="text-sm text-muted-foreground">Through supplier quality control</p>
-                </div>
+              <div className="space-y-4">
+                {disposalEntries
+                  .filter((entry) => entry.recoveredAmount && entry.recoveredAmount > 0)
+                  .map((entry) => (
+                    <div key={entry.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{entry.productName}</p>
+                          <Badge variant={getMethodColor(entry.disposalMethod) as any}>
+                            {entry.disposalMethod.replace("-", " ")}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {entry.productCode} • Qty: {entry.quantity} • {entry.disposalDate}
+                        </p>
+                        {entry.notes && <p className="text-sm text-muted-foreground italic">"{entry.notes}"</p>}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-muted-foreground">Original: ₹{entry.totalValue.toLocaleString()}</p>
+                        <p className="font-medium text-green-600">
+                          Recovered: ₹{entry.recoveredAmount?.toLocaleString()}
+                        </p>
+                        <p className="text-sm text-red-600">
+                          Loss: ₹{(entry.totalValue - (entry.recoveredAmount || 0)).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                {disposalEntries.filter((entry) => entry.recoveredAmount && entry.recoveredAmount > 0).length === 0 && (
+                  <div className="text-center py-8">
+                    <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">No recovery records found</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
-      {/* View Details Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Disposal Record Details</DialogTitle>
-            <DialogDescription>Complete information about the disposed item</DialogDescription>
-          </DialogHeader>
-          {selectedRecord && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Item Name</Label>
-                  <p className="font-medium">{selectedRecord.itemName}</p>
-                </div>
-                <div>
-                  <Label>Item Code</Label>
-                  <p className="font-medium">{selectedRecord.itemCode}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label>Category</Label>
-                  <p>{selectedRecord.category}</p>
-                </div>
-                <div>
-                  <Label>Quantity</Label>
-                  <p>{selectedRecord.quantity}</p>
-                </div>
-                <div>
-                  <Label>Disposal Date</Label>
-                  <p>{selectedRecord.disposalDate}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Original Value</Label>
-                  <p className="font-medium">
-                    Rs{(selectedRecord.originalPrice * selectedRecord.quantity).toLocaleString()}
-                  </p>
-                </div>
-                <div>
-                  <Label>Recovery Value</Label>
-                  <p className="font-medium text-green-600">
-                    Rs{(selectedRecord.disposalValue * selectedRecord.quantity).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              <div>
-                <Label>Loss Amount</Label>
-                <p className="font-medium text-red-600">
-                  Rs{(selectedRecord.lossAmount * selectedRecord.quantity).toLocaleString()}
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Condition</Label>
-                  <Badge variant={getConditionColor(selectedRecord.condition) as any}>{selectedRecord.condition}</Badge>
-                </div>
-                <div>
-                  <Label>Disposal Method</Label>
-                  <Badge variant={getMethodColor(selectedRecord.disposalMethod) as any}>
-                    {selectedRecord.disposalMethod.replace("-", " ")}
-                  </Badge>
-                </div>
-              </div>
-              <div>
-                <Label>Reason</Label>
-                <p>{selectedRecord.reason}</p>
-              </div>
-              <div>
-                <Label>Notes</Label>
-                <p className="text-sm text-muted-foreground">{selectedRecord.notes}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Approved By</Label>
-                  <p>{selectedRecord.approvedBy}</p>
-                </div>
-                <div>
-                  <Label>Supplier</Label>
-                  <p>{selectedRecord.supplierName}</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

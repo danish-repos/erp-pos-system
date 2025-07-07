@@ -15,9 +15,14 @@ import { ReportsModule } from "@/components/reports-module"
 import { DisposalModule } from "@/components/disposal-module"
 import { SalesLedger } from "@/components/sales-ledger"
 import { Button } from "@/components/ui/button"
+import { ProtectedRoute } from "@/components/auth/protected-route"
+import { useAuth } from "@/contexts/auth-context"
+import { LogOut, User } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 export default function ERPSystem() {
   const [activeModule, setActiveModule] = useState("dashboard")
+  const { user, logout } = useAuth()
 
   const renderModule = () => {
     switch (activeModule) {
@@ -46,26 +51,79 @@ export default function ERPSystem() {
     }
   }
 
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } catch (error) {
+      console.error("Logout failed:", error)
+    }
+  }
+
   return (
-    <SidebarProvider>
-      <AppSidebar activeModule={activeModule} setActiveModule={setActiveModule} />
-      <main className="flex-1 overflow-hidden">
-        <div className="flex h-14 items-center justify-between border-b px-4 lg:px-6">
-          <div className="flex items-center">
-            <SidebarTrigger />
-            <h1 className="ml-4 text-lg font-semibold">Power Project ERP + POS System</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/sign-in">Sign In</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link href="/sign-up">Sign Up</Link>
-            </Button>
+    <ProtectedRoute
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center space-y-4">
+            <h1 className="text-2xl font-bold">Power Project ERP + POS System</h1>
+            <p className="text-gray-600">Please sign in to access the system</p>
+            <div className="space-x-4">
+              <Button asChild>
+                <Link href="/sign-in">Sign In</Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/sign-up">Sign Up</Link>
+              </Button>
+            </div>
           </div>
         </div>
-        <div className="flex-1 overflow-auto p-4 lg:p-6">{renderModule()}</div>
-      </main>
-    </SidebarProvider>
+      }
+    >
+      <SidebarProvider>
+        <AppSidebar activeModule={activeModule} setActiveModule={setActiveModule} />
+        <main className="flex-1 overflow-hidden">
+          <div className="flex h-14 items-center justify-between border-b px-4 lg:px-6">
+            <div className="flex items-center">
+              <SidebarTrigger />
+              <h1 className="ml-4 text-lg font-semibold">Power Project ERP + POS System</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              {user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="flex items-center gap-2 bg-transparent">
+                      <User className="h-4 w-4" />
+                      {user.displayName || user.email}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>
+                      <User className="mr-2 h-4 w-4" />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href="/sign-in">Sign In</Link>
+                  </Button>
+                  <Button size="sm" asChild>
+                    <Link href="/sign-up">Sign Up</Link>
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto p-4 lg:p-6">{renderModule()}</div>
+        </main>
+      </SidebarProvider>
+    </ProtectedRoute>
   )
 }

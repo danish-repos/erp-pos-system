@@ -1,13 +1,34 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Plus, Minus, Trash2, User, CreditCard, Smartphone, Banknote, Printer, MessageSquare, ShoppingCart} from "lucide-react"
+import {
+  Search,
+  Plus,
+  Minus,
+  Trash2,
+  User,
+  CreditCard,
+  Smartphone,
+  Banknote,
+  Printer,
+  MessageSquare,
+  ShoppingCart,
+} from "lucide-react"
+import {
+  ProductService,
+  SalesService,
+  EmployeeService,
+  type Product,
+  type Employee,
+  type SaleItem,
+} from "@/lib/firebase-services"
+import { useToast } from "@/hooks/use-toast"
 
 interface CartItem {
   id: string
@@ -26,15 +47,35 @@ export function POSModule() {
   const [customerPhone, setCustomerPhone] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("")
   const [staffMember, setStaffMember] = useState("")
+  const [products, setProducts] = useState<Product[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [loading, setLoading] = useState(true)
+  const { toast } = useToast()
 
-  // Sample products
-  const products = [
-    { id: "1", name: "Cotton Kurta - Blue", code: "CK001", price: 1200, stock: 15 },
-    { id: "2", name: "Silk Dupatta - Red", code: "SD002", price: 800, stock: 8 },
-    { id: "3", name: "Linen Shirt - White", code: "LS003", price: 1500, stock: 12 },
-    { id: "4", name: "Cotton Pants - Black", code: "CP004", price: 900, stock: 20 },
-    { id: "5", name: "Silk Saree - Green", code: "SS005", price: 3500, stock: 5 },
-  ]
+  // Load products and employees from Firebase
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [productsData, employeesData] = await Promise.all([
+          ProductService.getAllProducts(),
+          EmployeeService.getAllEmployees(),
+        ])
+        setProducts(productsData)
+        setEmployees(employeesData)
+        setLoading(false)
+      } catch (error) {
+        console.error("Error loading data:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load data. Please refresh the page.",
+          variant: "destructive",
+        })
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [toast])
 
   const filteredProducts = products.filter(
     (product) =>
@@ -42,7 +83,7 @@ export function POSModule() {
       product.code.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  const addToCart = (product: (typeof products)[0]) => {
+  const addToCart = (product: Product) => {
     const existingItem = cart.find((item) => item.id === product.id)
     if (existingItem) {
       setCart(
@@ -59,10 +100,10 @@ export function POSModule() {
           id: product.id,
           name: product.name,
           code: product.code,
-          price: product.price,
+          price: product.currentPrice,
           quantity: 1,
           discount: 0,
-          finalPrice: product.price,
+          finalPrice: product.currentPrice,
         },
       ])
     }
@@ -98,17 +139,96 @@ export function POSModule() {
   const totalDiscount = cart.reduce((sum, item) => sum + item.discount * item.quantity, 0)
   const total = cart.reduce((sum, item) => sum + item.finalPrice, 0)
 
-  const handleCheckout = () => {
-    if (cart.length === 0) return
+  const handleCheckout = async () => {
+    if (cart.length === 0) {
+      toast({
+        title: "Empty Cart",
+        description: "Please add items to cart before checkout",
+        variant: "destructive",
+      })
+      return
+    }
 
-    // Here you would typically process the sale
-    alert(`Sale completed! Total: Rs${total.toLocaleString()}`)
+    if (!paymentMethod || !staffMember) {
+      toast({
+        title: "Missing Information",
+        description: "Please select payment method and staff member",
+        variant: "destructive",
+      })
+      return
+    }
 
-    // Reset form
-    setCart([])
-    setCustomerName("")
-    setCustomerPhone("")
-    setPaymentMethod("")
+    try {
+      const saleItems: SaleItem[] = cart.map((item) => ({
+        id: item.id,
+        name: item.name,
+        code: item.code,
+        quantity: item.quantity,
+        originalPrice: item.price,
+        finalPrice: item.price - item.discount,
+        discount: item.discount,
+      }))
+
+      const saleData = {
+        invoiceNumber: `INV-${Date.now()}`,
+        date: new Date().toISOString().split("T")[0],
+        time: new Date().toLocaleTimeString(),
+        customerName: customerName || "Walk-in Customer",
+        customerPhone: customerPhone || "",
+        customerType: (customerName ? "regular" : "walk-in") as "walk-in" | "regular" | "vip",
+        items: saleItems,
+        subtotal,
+        discount: totalDiscount,
+        tax: 0,
+        total,
+        paymentMethod: paymentMethod as "cash" | "card" | "mobile" | "credit",
+        paymentStatus: (paymentMethod === "credit" ? "pending" : "paid") as "paid" | "partial" | "pending",
+        deliveryStatus: "pickup" as "pickup" | "delivered" | "pending" | "cancelled",
+        staffMember: employees.find((emp) => emp.id === staffMember)?.name || "",
+        notes: "",
+        returnStatus: "none" as "none" | "partial" | "full",
+      }
+
+      await SalesService.createSale(saleData)
+
+      // Update product stock
+      for (const item of cart) {
+        const product = products.find((p) => p.id === item.id)
+        if (product) {
+          await ProductService.updateProduct(item.id, {
+            stock: product.stock - item.quantity,
+          })
+        }
+      }
+
+      toast({
+        title: "Sale Completed",
+        description: `Sale completed successfully! Total: ₹${total.toLocaleString()}`,
+      })
+
+      // Reset form
+      setCart([])
+      setCustomerName("")
+      setCustomerPhone("")
+      setPaymentMethod("")
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to complete sale. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading POS data...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -148,7 +268,7 @@ export function POSModule() {
                       <p className="text-sm text-muted-foreground">Stock: {product.stock}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">Rs{product.price}</p>
+                      <p className="font-bold">₹{product.currentPrice}</p>
                       <Button size="sm" variant="outline">
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -171,10 +291,11 @@ export function POSModule() {
                 <SelectValue placeholder="Select staff member handling this sale" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ahmed">Ahmed Ali</SelectItem>
-                <SelectItem value="fatima">Fatima Khan</SelectItem>
-                <SelectItem value="hassan">Hassan Sheikh</SelectItem>
-                <SelectItem value="sara">Sara Ahmed</SelectItem>
+                {employees.map((employee) => (
+                  <SelectItem key={employee.id} value={employee.id}>
+                    {employee.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </CardContent>
@@ -220,7 +341,7 @@ export function POSModule() {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span>Price:</span>
-                        <span>Rs{item.price}</span>
+                        <span>₹{item.price}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Label className="text-xs">Discount:</Label>
@@ -234,7 +355,7 @@ export function POSModule() {
                       </div>
                       <div className="flex justify-between text-sm font-medium">
                         <span>Total:</span>
-                        <span>Rs{item.finalPrice}</span>
+                        <span>₹{item.finalPrice}</span>
                       </div>
                     </div>
                   </div>
@@ -247,15 +368,15 @@ export function POSModule() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
-                <span>Rs{subtotal.toLocaleString()}</span>
+                <span>₹{subtotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-red-600">
                 <span>Total Discount:</span>
-                <span>-Rs{totalDiscount.toLocaleString()}</span>
+                <span>-₹{totalDiscount.toLocaleString()}</span>
               </div>
               <div className="flex justify-between font-bold text-lg">
                 <span>Total:</span>
-                <span>Rs{total.toLocaleString()}</span>
+                <span>₹{total.toLocaleString()}</span>
               </div>
             </div>
           </CardContent>
@@ -338,13 +459,13 @@ export function POSModule() {
               >
                 Complete Sale
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full bg-transparent">
                 <Printer className="h-4 w-4 mr-2" />
                 Print
               </Button>
             </div>
 
-            <Button variant="outline" className="w-full">
+            <Button variant="outline" className="w-full bg-transparent">
               <MessageSquare className="h-4 w-4 mr-2" />
               Send WhatsApp Invoice
             </Button>

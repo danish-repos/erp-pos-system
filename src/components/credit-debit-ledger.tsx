@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,158 +17,234 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, Building, Phone, MessageSquare, AlertCircle, DollarSign, TrendingUp, TrendingDown } from "lucide-react"
-
-interface CreditEntry {
-  id: string
-  customerName: string
-  customerPhone: string
-  amount: number
-  dueDate: string
-  saleDate: string
-  invoiceNumber: string
-  status: "pending" | "partial" | "paid" | "overdue"
-  paidAmount: number
-  remainingAmount: number
-  paymentHistory: PaymentRecord[]
-  notes: string
-}
-
-interface DebitEntry {
-  id: string
-  supplierName: string
-  supplierPhone: string
-  amount: number
-  dueDate: string
-  purchaseDate: string
-  invoiceNumber: string
-  status: "pending" | "partial" | "paid" | "overdue"
-  paidAmount: number
-  remainingAmount: number
-  paymentHistory: PaymentRecord[]
-  description: string
-  category: string
-}
-
-interface PaymentRecord {
-  id: string
-  amount: number
-  date: string
-  method: string
-  reference: string
-  notes: string
-}
+import { Plus, Edit, Search, AlertCircle, DollarSign, TrendingUp, TrendingDown } from "lucide-react"
+import { LedgerService, type CreditEntry, type DebitEntry, type PaymentRecord } from "@/lib/firebase-services"
+import { useToast } from "@/hooks/use-toast"
 
 export function CreditDebitLedger() {
-  const [creditEntries, setCreditEntries] = useState<CreditEntry[]>([
-    {
-      id: "1",
-      customerName: "Ali Hassan",
-      customerPhone: "+92-300-1234567",
-      amount: 15000,
-      dueDate: "2024-02-15",
-      saleDate: "2024-01-15",
-      invoiceNumber: "INV-2024-001",
-      status: "pending",
-      paidAmount: 0,
-      remainingAmount: 15000,
-      paymentHistory: [],
-      notes: "Wedding dress order - 3 pieces",
-    },
-    {
-      id: "2",
-      customerName: "Fatima Khan",
-      customerPhone: "+92-301-9876543",
-      amount: 8500,
-      dueDate: "2024-02-10",
-      saleDate: "2024-01-20",
-      invoiceNumber: "INV-2024-002",
-      status: "partial",
-      paidAmount: 3000,
-      remainingAmount: 5500,
-      paymentHistory: [
-        {
-          id: "1",
-          amount: 3000,
-          date: "2024-01-25",
-          method: "Cash",
-          reference: "CASH-001",
-          notes: "Partial payment",
-        },
-      ],
-      notes: "Regular customer - good payment history",
-    },
-    {
-      id: "3",
-      customerName: "Ahmed Sheikh",
-      customerPhone: "+92-302-5555555",
-      amount: 12000,
-      dueDate: "2024-01-30",
-      saleDate: "2024-01-10",
-      invoiceNumber: "INV-2024-003",
-      status: "overdue",
-      paidAmount: 0,
-      remainingAmount: 12000,
-      paymentHistory: [],
-      notes: "Multiple reminders sent",
-    },
-  ])
-
-  const [debitEntries, setDebitEntries] = useState<DebitEntry[]>([
-    {
-      id: "1",
-      supplierName: "Textile Mills Ltd",
-      supplierPhone: "+92-42-1111111",
-      amount: 45000,
-      dueDate: "2024-02-20",
-      purchaseDate: "2024-01-20",
-      invoiceNumber: "PUR-2024-001",
-      status: "pending",
-      paidAmount: 0,
-      remainingAmount: 45000,
-      paymentHistory: [],
-      description: "Cotton fabric - 100 meters",
-      category: "Raw Material",
-    },
-    {
-      id: "2",
-      supplierName: "Silk Weavers Co",
-      supplierPhone: "+92-42-2222222",
-      amount: 25000,
-      dueDate: "2024-02-15",
-      purchaseDate: "2024-01-18",
-      invoiceNumber: "PUR-2024-002",
-      status: "partial",
-      paidAmount: 10000,
-      remainingAmount: 15000,
-      paymentHistory: [
-        {
-          id: "1",
-          amount: 10000,
-          date: "2024-01-28",
-          method: "Bank Transfer",
-          reference: "TXN-123456",
-          notes: "Advance payment",
-        },
-      ],
-      description: "Premium silk fabric - 50 meters",
-      category: "Raw Material",
-    },
-  ])
-
-  const [isAddCreditOpen, setIsAddCreditOpen] = useState(false)
-  const [isAddDebitOpen, setIsAddDebitOpen] = useState(false)
+  const [creditEntries, setCreditEntries] = useState<CreditEntry[]>([])
+  const [debitEntries, setDebitEntries] = useState<DebitEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [isCreditDialogOpen, setIsCreditDialogOpen] = useState(false)
+  const [isDebitDialogOpen, setIsDebitDialogOpen] = useState(false)
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
   const [selectedEntry, setSelectedEntry] = useState<CreditEntry | DebitEntry | null>(null)
-  const [paymentAmount, setPaymentAmount] = useState("")
-  const [paymentMethod, setPaymentMethod] = useState("")
-  const [paymentReference, setPaymentReference] = useState("")
-  const [paymentNotes, setPaymentNotes] = useState("")
+  const [entryType, setEntryType] = useState<"credit" | "debit">("credit")
+  const { toast } = useToast()
 
-  const totalCredit = creditEntries.reduce((sum, entry) => sum + entry.remainingAmount, 0)
-  const totalDebit = debitEntries.reduce((sum, entry) => sum + entry.remainingAmount, 0)
-  const overdueCredit = creditEntries.filter((entry) => entry.status === "overdue")
-  const overdueDebit = debitEntries.filter((entry) => entry.status === "overdue")
+  const [newCreditEntry, setNewCreditEntry] = useState({
+    customerName: "",
+    customerPhone: "",
+    amount: "",
+    dueDate: "",
+    saleDate: "",
+    invoiceNumber: "",
+    notes: "",
+  })
+
+  const [newDebitEntry, setNewDebitEntry] = useState({
+    supplierName: "",
+    supplierPhone: "",
+    amount: "",
+    dueDate: "",
+    purchaseDate: "",
+    invoiceNumber: "",
+    description: "",
+    category: "",
+  })
+
+  const [newPayment, setNewPayment] = useState({
+    amount: "",
+    method: "",
+    reference: "",
+    notes: "",
+  })
+
+  // Load data from Firebase
+  useEffect(() => {
+    const unsubscribeCredits = LedgerService.subscribeToCreditEntries((entries) => {
+      setCreditEntries(entries)
+      setLoading(false)
+    })
+
+    const unsubscribeDebits = LedgerService.subscribeToDebitEntries((entries) => {
+      setDebitEntries(entries)
+    })
+
+    return () => {
+      unsubscribeCredits()
+      unsubscribeDebits()
+    }
+  }, [])
+
+  const filteredCreditEntries = creditEntries.filter(
+    (entry) =>
+      entry.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
+
+  const filteredDebitEntries = debitEntries.filter(
+    (entry) =>
+      entry.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      entry.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
+
+  const handleAddCreditEntry = async () => {
+    try {
+      const amount = Number(newCreditEntry.amount)
+      const entry: Omit<CreditEntry, "id"> = {
+        customerName: newCreditEntry.customerName,
+        customerPhone: newCreditEntry.customerPhone,
+        amount: amount,
+        dueDate: newCreditEntry.dueDate,
+        saleDate: newCreditEntry.saleDate,
+        invoiceNumber: newCreditEntry.invoiceNumber,
+        status: "pending" as const,
+        paidAmount: 0,
+        remainingAmount: amount,
+        paymentHistory: [],
+        notes: newCreditEntry.notes,
+      }
+
+      await LedgerService.createCreditEntry(entry)
+
+      setNewCreditEntry({
+        customerName: "",
+        customerPhone: "",
+        amount: "",
+        dueDate: "",
+        saleDate: "",
+        invoiceNumber: "",
+        notes: "",
+      })
+      setIsCreditDialogOpen(false)
+
+      toast({
+        title: "Credit Entry Added",
+        description: "Credit entry has been successfully added",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add credit entry. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleAddDebitEntry = async () => {
+    try {
+      const amount = Number(newDebitEntry.amount)
+      const entry: Omit<DebitEntry, "id"> = {
+        supplierName: newDebitEntry.supplierName,
+        supplierPhone: newDebitEntry.supplierPhone,
+        amount: amount,
+        dueDate: newDebitEntry.dueDate,
+        purchaseDate: newDebitEntry.purchaseDate,
+        invoiceNumber: newDebitEntry.invoiceNumber,
+        status: "pending" as const,
+        paidAmount: 0,
+        remainingAmount: amount,
+        paymentHistory: [],
+        description: newDebitEntry.description,
+        category: newDebitEntry.category,
+      }
+
+      await LedgerService.createDebitEntry(entry)
+
+      setNewDebitEntry({
+        supplierName: "",
+        supplierPhone: "",
+        amount: "",
+        dueDate: "",
+        purchaseDate: "",
+        invoiceNumber: "",
+        description: "",
+        category: "",
+      })
+      setIsDebitDialogOpen(false)
+
+      toast({
+        title: "Debit Entry Added",
+        description: "Debit entry has been successfully added",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add debit entry. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleAddPayment = async () => {
+    if (!selectedEntry) return
+
+    try {
+      const paymentAmount = Number(newPayment.amount)
+      const payment: PaymentRecord = {
+        id: Date.now().toString(),
+        amount: paymentAmount,
+        date: new Date().toISOString().split("T")[0],
+        method: newPayment.method,
+        reference: newPayment.reference,
+        notes: newPayment.notes,
+      }
+
+      const newPaidAmount = selectedEntry.paidAmount + paymentAmount
+      const newRemainingAmount = selectedEntry.amount - newPaidAmount
+
+      let updatedStatus: "pending" | "partial" | "paid" | "overdue"
+      if (newRemainingAmount <= 0) {
+        updatedStatus = "paid"
+      } else if (newPaidAmount > 0) {
+        updatedStatus = "partial"
+      } else {
+        updatedStatus = "pending"
+      }
+
+      const updatedEntry = {
+        ...selectedEntry,
+        paidAmount: newPaidAmount,
+        remainingAmount: Math.max(0, newRemainingAmount),
+        status: updatedStatus,
+        paymentHistory: [...selectedEntry.paymentHistory, payment],
+      }
+
+      if (entryType === "credit") {
+        await LedgerService.updateCreditEntry(selectedEntry.id, updatedEntry)
+      } else {
+        await LedgerService.updateDebitEntry(selectedEntry.id, updatedEntry)
+      }
+
+      setNewPayment({
+        amount: "",
+        method: "",
+        reference: "",
+        notes: "",
+      })
+      setIsPaymentDialogOpen(false)
+      setSelectedEntry(null)
+
+      toast({
+        title: "Payment Recorded",
+        description: "Payment has been successfully recorded",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to record payment. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const openPaymentDialog = (entry: CreditEntry | DebitEntry, type: "credit" | "debit") => {
+    setSelectedEntry(entry)
+    setEntryType(type)
+    setIsPaymentDialogOpen(true)
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -176,88 +252,28 @@ export function CreditDebitLedger() {
         return "default"
       case "partial":
         return "secondary"
+      case "pending":
+        return "destructive"
       case "overdue":
         return "destructive"
       default:
-        return "outline"
+        return "default"
     }
   }
 
-  const getDaysOverdue = (dueDate: string) => {
-    const today = new Date()
-    const due = new Date(dueDate)
-    const diffTime = today.getTime() - due.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays > 0 ? diffDays : 0
+  const isOverdue = (dueDate: string) => {
+    return new Date(dueDate) < new Date()
   }
 
-  const handlePayment = () => {
-    if (!selectedEntry || !paymentAmount) return
-
-    const amount = Number.parseFloat(paymentAmount)
-    const newPayment: PaymentRecord = {
-      id: Date.now().toString(),
-      amount,
-      date: new Date().toISOString().split("T")[0],
-      method: paymentMethod,
-      reference: paymentReference,
-      notes: paymentNotes,
-    }
-
-    if ("customerName" in selectedEntry) {
-      // Credit entry
-      setCreditEntries(
-        creditEntries.map((entry) =>
-          entry.id === selectedEntry.id
-            ? {
-                ...entry,
-                paidAmount: entry.paidAmount + amount,
-                remainingAmount: entry.remainingAmount - amount,
-                status:
-                  entry.remainingAmount - amount <= 0
-                    ? "paid"
-                    : entry.remainingAmount - amount < entry.amount
-                      ? "partial"
-                      : entry.status,
-                paymentHistory: [newPayment, ...entry.paymentHistory],
-              }
-            : entry,
-        ),
-      )
-    } else {
-      // Debit entry
-      setDebitEntries(
-        debitEntries.map((entry) =>
-          entry.id === selectedEntry.id
-            ? {
-                ...entry,
-                paidAmount: entry.paidAmount + amount,
-                remainingAmount: entry.remainingAmount - amount,
-                status:
-                  entry.remainingAmount - amount <= 0
-                    ? "paid"
-                    : entry.remainingAmount - amount < entry.amount
-                      ? "partial"
-                      : entry.status,
-                paymentHistory: [newPayment, ...entry.paymentHistory],
-              }
-            : entry,
-        ),
-      )
-    }
-
-    // Reset form
-    setSelectedEntry(null)
-    setPaymentAmount("")
-    setPaymentMethod("")
-    setPaymentReference("")
-    setPaymentNotes("")
-    setIsPaymentDialogOpen(false)
-  }
-
-  const sendReminder = (entry: CreditEntry) => {
-    // In a real app, this would send WhatsApp/SMS
-    alert(`Reminder sent to ${entry.customerName} (${entry.customerPhone})`)
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading ledger...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -265,116 +281,215 @@ export function CreditDebitLedger() {
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Credit & Debit Ledger</h2>
         <div className="flex gap-2">
-          <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+          <Dialog open={isDebitDialogOpen} onOpenChange={setIsDebitDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <DollarSign className="h-4 w-4 mr-2" />
-                Record Payment
+              <Button variant="outline">
+                <TrendingDown className="h-4 w-4 mr-2" />
+                Add Debit
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Record Payment</DialogTitle>
-                <DialogDescription>Record a payment received or made</DialogDescription>
+                <DialogTitle>Add Debit Entry</DialogTitle>
+                <DialogDescription>Record a new supplier payment due</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Select Entry</Label>
-                  <Select
-                    value={selectedEntry?.id || ""}
-                    onValueChange={(value) => {
-                      const creditEntry = creditEntries.find((e) => e.id === value)
-                      const debitEntry = debitEntries.find((e) => e.id === value)
-                      setSelectedEntry(creditEntry || debitEntry || null)
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose an entry" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <optgroup label="Credit (Receivables)">
-                        {creditEntries
-                          .filter((e) => e.remainingAmount > 0)
-                          .map((entry) => (
-                            <SelectItem key={entry.id} value={entry.id}>
-                              {entry.customerName} - Rs{entry.remainingAmount.toLocaleString()}
-                            </SelectItem>
-                          ))}
-                      </optgroup>
-                      <optgroup label="Debit (Payables)">
-                        {debitEntries
-                          .filter((e) => e.remainingAmount > 0)
-                          .map((entry) => (
-                            <SelectItem key={entry.id} value={entry.id}>
-                              {entry.supplierName} - Rs{entry.remainingAmount.toLocaleString()}
-                            </SelectItem>
-                          ))}
-                      </optgroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {selectedEntry && (
-                  <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-sm">
-                      <strong>
-                        {"customerName" in selectedEntry ? selectedEntry.customerName : selectedEntry.supplierName}
-                      </strong>
-                    </p>
-                    <p className="text-sm">Outstanding: Rs{selectedEntry.remainingAmount.toLocaleString()}</p>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="supplierName">Supplier Name</Label>
+                    <Input
+                      id="supplierName"
+                      value={newDebitEntry.supplierName}
+                      onChange={(e) => setNewDebitEntry({ ...newDebitEntry, supplierName: e.target.value })}
+                      placeholder="Supplier name"
+                    />
                   </div>
-                )}
+                  <div>
+                    <Label htmlFor="supplierPhone">Phone</Label>
+                    <Input
+                      id="supplierPhone"
+                      value={newDebitEntry.supplierPhone}
+                      onChange={(e) => setNewDebitEntry({ ...newDebitEntry, supplierPhone: e.target.value })}
+                      placeholder="Phone number"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="debitAmount">Amount (₹)</Label>
+                    <Input
+                      id="debitAmount"
+                      type="number"
+                      value={newDebitEntry.amount}
+                      onChange={(e) => setNewDebitEntry({ ...newDebitEntry, amount: e.target.value })}
+                      placeholder="5000"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="category">Category</Label>
+                    <Select
+                      value={newDebitEntry.category}
+                      onValueChange={(value) => setNewDebitEntry({ ...newDebitEntry, category: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="inventory">Inventory Purchase</SelectItem>
+                        <SelectItem value="equipment">Equipment</SelectItem>
+                        <SelectItem value="services">Services</SelectItem>
+                        <SelectItem value="utilities">Utilities</SelectItem>
+                        <SelectItem value="rent">Rent</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="purchaseDate">Purchase Date</Label>
+                    <Input
+                      id="purchaseDate"
+                      type="date"
+                      value={newDebitEntry.purchaseDate}
+                      onChange={(e) => setNewDebitEntry({ ...newDebitEntry, purchaseDate: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="debitDueDate">Due Date</Label>
+                    <Input
+                      id="debitDueDate"
+                      type="date"
+                      value={newDebitEntry.dueDate}
+                      onChange={(e) => setNewDebitEntry({ ...newDebitEntry, dueDate: e.target.value })}
+                    />
+                  </div>
+                </div>
 
                 <div>
-                  <Label>Payment Amount</Label>
+                  <Label htmlFor="debitInvoiceNumber">Invoice Number</Label>
                   <Input
-                    type="number"
-                    placeholder="Enter amount"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    id="debitInvoiceNumber"
+                    value={newDebitEntry.invoiceNumber}
+                    onChange={(e) => setNewDebitEntry({ ...newDebitEntry, invoiceNumber: e.target.value })}
+                    placeholder="INV-001"
                   />
                 </div>
 
                 <div>
-                  <Label>Payment Method</Label>
-                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
-                      <SelectItem value="cheque">Cheque</SelectItem>
-                      <SelectItem value="mobile-payment">Mobile Payment</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label>Reference Number</Label>
+                  <Label htmlFor="description">Description</Label>
                   <Input
-                    placeholder="Transaction reference"
-                    value={paymentReference}
-                    onChange={(e) => setPaymentReference(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <Label>Notes</Label>
-                  <Input
-                    placeholder="Additional notes"
-                    value={paymentNotes}
-                    onChange={(e) => setPaymentNotes(e.target.value)}
+                    id="description"
+                    value={newDebitEntry.description}
+                    onChange={(e) => setNewDebitEntry({ ...newDebitEntry, description: e.target.value })}
+                    placeholder="Purchase description"
                   />
                 </div>
 
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
+                  <Button variant="outline" onClick={() => setIsDebitDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handlePayment} disabled={!selectedEntry || !paymentAmount || !paymentMethod}>
-                    Record Payment
+                  <Button onClick={handleAddDebitEntry}>Add Debit Entry</Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isCreditDialogOpen} onOpenChange={setIsCreditDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Credit
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Credit Entry</DialogTitle>
+                <DialogDescription>Record a new customer payment due</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="customerName">Customer Name</Label>
+                    <Input
+                      id="customerName"
+                      value={newCreditEntry.customerName}
+                      onChange={(e) => setNewCreditEntry({ ...newCreditEntry, customerName: e.target.value })}
+                      placeholder="Customer name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="customerPhone">Phone</Label>
+                    <Input
+                      id="customerPhone"
+                      value={newCreditEntry.customerPhone}
+                      onChange={(e) => setNewCreditEntry({ ...newCreditEntry, customerPhone: e.target.value })}
+                      placeholder="Phone number"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="creditAmount">Amount (₹)</Label>
+                    <Input
+                      id="creditAmount"
+                      type="number"
+                      value={newCreditEntry.amount}
+                      onChange={(e) => setNewCreditEntry({ ...newCreditEntry, amount: e.target.value })}
+                      placeholder="2500"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="creditInvoiceNumber">Invoice Number</Label>
+                    <Input
+                      id="creditInvoiceNumber"
+                      value={newCreditEntry.invoiceNumber}
+                      onChange={(e) => setNewCreditEntry({ ...newCreditEntry, invoiceNumber: e.target.value })}
+                      placeholder="INV-001"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="saleDate">Sale Date</Label>
+                    <Input
+                      id="saleDate"
+                      type="date"
+                      value={newCreditEntry.saleDate}
+                      onChange={(e) => setNewCreditEntry({ ...newCreditEntry, saleDate: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="creditDueDate">Due Date</Label>
+                    <Input
+                      id="creditDueDate"
+                      type="date"
+                      value={newCreditEntry.dueDate}
+                      onChange={(e) => setNewCreditEntry({ ...newCreditEntry, dueDate: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="notes">Notes</Label>
+                  <Input
+                    id="notes"
+                    value={newCreditEntry.notes}
+                    onChange={(e) => setNewCreditEntry({ ...newCreditEntry, notes: e.target.value })}
+                    placeholder="Additional notes"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsCreditDialogOpen(false)}>
+                    Cancel
                   </Button>
+                  <Button onClick={handleAddCreditEntry}>Add Credit Entry</Button>
                 </div>
               </div>
             </DialogContent>
@@ -382,74 +497,117 @@ export function CreditDebitLedger() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-green-600" />
-              Total Receivables
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">Rs{totalCredit.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{creditEntries.length} customers</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-red-600" />
-              Total Payables
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">Rs{totalDebit.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{debitEntries.length} suppliers</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Net Position</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${totalCredit - totalDebit >= 0 ? "text-green-600" : "text-red-600"}`}>
-              Rs{Math.abs(totalCredit - totalDebit).toLocaleString()}
+      {/* Payment Dialog */}
+      <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription>
+              {selectedEntry && (
+                <>
+                  Recording payment for{" "}
+                  {"customerName" in selectedEntry ? selectedEntry.customerName : selectedEntry.supplierName} -
+                  Remaining: ₹{selectedEntry.remainingAmount.toLocaleString()}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="paymentAmount">Payment Amount (₹)</Label>
+                <Input
+                  id="paymentAmount"
+                  type="number"
+                  value={newPayment.amount}
+                  onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
+                  placeholder="1000"
+                  max={selectedEntry?.remainingAmount}
+                />
+              </div>
+              <div>
+                <Label htmlFor="paymentMethod">Payment Method</Label>
+                <Select
+                  value={newPayment.method}
+                  onValueChange={(value) => setNewPayment({ ...newPayment, method: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="bank-transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="mobile-payment">Mobile Payment</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {totalCredit - totalDebit >= 0 ? "Net Receivable" : "Net Payable"}
-            </p>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Overdue Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{overdueCredit.length + overdueDebit.length}</div>
-            <p className="text-xs text-muted-foreground">Need immediate attention</p>
-          </CardContent>
-        </Card>
-      </div>
+            <div>
+              <Label htmlFor="paymentReference">Reference Number</Label>
+              <Input
+                id="paymentReference"
+                value={newPayment.reference}
+                onChange={(e) => setNewPayment({ ...newPayment, reference: e.target.value })}
+                placeholder="Transaction reference"
+              />
+            </div>
 
-      <Tabs defaultValue="credit" className="space-y-4">
+            <div>
+              <Label htmlFor="paymentNotes">Notes</Label>
+              <Input
+                id="paymentNotes"
+                value={newPayment.notes}
+                onChange={(e) => setNewPayment({ ...newPayment, notes: e.target.value })}
+                placeholder="Payment notes"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddPayment}>Record Payment</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Search */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            Search Entries
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Input
+            placeholder="Search by customer/supplier name or invoice number..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Tabs for Credit and Debit */}
+      <Tabs defaultValue="credits" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="credit">Credit (Receivables)</TabsTrigger>
-          <TabsTrigger value="debit">Debit (Payables)</TabsTrigger>
-          <TabsTrigger value="overdue">Overdue Items</TabsTrigger>
+          <TabsTrigger value="credits">Credit Entries (Receivables)</TabsTrigger>
+          <TabsTrigger value="debits">Debit Entries (Payables)</TabsTrigger>
+          <TabsTrigger value="summary">Summary</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="credit" className="space-y-4">
+        <TabsContent value="credits">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Customer Receivables
+                <TrendingUp className="h-5 w-5 text-green-500" />
+                Credit Entries (Money to Receive)
               </CardTitle>
-              <CardDescription>Money owed by customers for credit sales</CardDescription>
+              <CardDescription>Track customer payments and receivables</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -467,60 +625,51 @@ export function CreditDebitLedger() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {creditEntries.map((entry) => {
-                      const daysOverdue = getDaysOverdue(entry.dueDate)
-
-                      return (
-                        <TableRow key={entry.id}>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{entry.customerName}</p>
-                              <p className="text-sm text-muted-foreground">{entry.customerPhone}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{entry.invoiceNumber}</p>
-                              <p className="text-xs text-muted-foreground">Sale: {entry.saleDate}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>Rs{entry.amount.toLocaleString()}</TableCell>
-                          <TableCell>Rs{entry.paidAmount.toLocaleString()}</TableCell>
-                          <TableCell>
-                            <span className="font-medium">Rs{entry.remainingAmount.toLocaleString()}</span>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <p>{entry.dueDate}</p>
-                              {daysOverdue > 0 && <p className="text-xs text-red-600">{daysOverdue} days overdue</p>}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={getStatusColor(entry.status) as any}>{entry.status}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setSelectedEntry(entry)
-                                  setIsPaymentDialogOpen(true)
-                                }}
-                              >
+                    {filteredCreditEntries.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{entry.customerName}</p>
+                            <p className="text-sm text-muted-foreground">{entry.customerPhone}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{entry.invoiceNumber}</Badge>
+                        </TableCell>
+                        <TableCell>₹{entry.amount.toLocaleString()}</TableCell>
+                        <TableCell>₹{entry.paidAmount.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <span className={entry.remainingAmount > 0 ? "text-orange-600" : "text-green-600"}>
+                            ₹{entry.remainingAmount.toLocaleString()}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className={isOverdue(entry.dueDate) && entry.status !== "paid" ? "text-red-600" : ""}>
+                            {entry.dueDate}
+                            {isOverdue(entry.dueDate) && entry.status !== "paid" && (
+                              <AlertCircle className="inline h-4 w-4 ml-1" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusColor(entry.status) as any}>
+                            {isOverdue(entry.dueDate) && entry.status !== "paid" ? "overdue" : entry.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            {entry.status !== "paid" && (
+                              <Button size="sm" variant="outline" onClick={() => openPaymentDialog(entry, "credit")}>
                                 <DollarSign className="h-4 w-4" />
                               </Button>
-                              <Button size="sm" variant="outline" onClick={() => sendReminder(entry)}>
-                                <MessageSquare className="h-4 w-4" />
-                              </Button>
-                              <Button size="sm" variant="outline">
-                                <Phone className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
+                            )}
+                            <Button size="sm" variant="outline">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -528,14 +677,14 @@ export function CreditDebitLedger() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="debit" className="space-y-4">
+        <TabsContent value="debits">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Building className="h-5 w-5" />
-                Supplier Payables
+                <TrendingDown className="h-5 w-5 text-red-500" />
+                Debit Entries (Money to Pay)
               </CardTitle>
-              <CardDescription>Money owed to suppliers for purchases</CardDescription>
+              <CardDescription>Track supplier payments and payables</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -544,7 +693,7 @@ export function CreditDebitLedger() {
                     <TableRow>
                       <TableHead>Supplier</TableHead>
                       <TableHead>Invoice</TableHead>
-                      <TableHead>Description</TableHead>
+                      <TableHead>Category</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Paid</TableHead>
                       <TableHead>Remaining</TableHead>
@@ -554,65 +703,54 @@ export function CreditDebitLedger() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {debitEntries.map((entry) => {
-                      const daysOverdue = getDaysOverdue(entry.dueDate)
-
-                      return (
-                        <TableRow key={entry.id}>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{entry.supplierName}</p>
-                              <p className="text-sm text-muted-foreground">{entry.supplierPhone}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{entry.invoiceNumber}</p>
-                              <p className="text-xs text-muted-foreground">Purchase: {entry.purchaseDate}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="text-sm">{entry.description}</p>
-                              <Badge variant="outline" className="text-xs">
-                                {entry.category}
-                              </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell>Rs{entry.amount.toLocaleString()}</TableCell>
-                          <TableCell>Rs{entry.paidAmount.toLocaleString()}</TableCell>
-                          <TableCell>
-                            <span className="font-medium">Rs{entry.remainingAmount.toLocaleString()}</span>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <p>{entry.dueDate}</p>
-                              {daysOverdue > 0 && <p className="text-xs text-red-600">{daysOverdue} days overdue</p>}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={getStatusColor(entry.status) as any}>{entry.status}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setSelectedEntry(entry)
-                                  setIsPaymentDialogOpen(true)
-                                }}
-                              >
+                    {filteredDebitEntries.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{entry.supplierName}</p>
+                            <p className="text-sm text-muted-foreground">{entry.supplierPhone}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{entry.invoiceNumber}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{entry.category}</Badge>
+                        </TableCell>
+                        <TableCell>₹{entry.amount.toLocaleString()}</TableCell>
+                        <TableCell>₹{entry.paidAmount.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <span className={entry.remainingAmount > 0 ? "text-red-600" : "text-green-600"}>
+                            ₹{entry.remainingAmount.toLocaleString()}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className={isOverdue(entry.dueDate) && entry.status !== "paid" ? "text-red-600" : ""}>
+                            {entry.dueDate}
+                            {isOverdue(entry.dueDate) && entry.status !== "paid" && (
+                              <AlertCircle className="inline h-4 w-4 ml-1" />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusColor(entry.status) as any}>
+                            {isOverdue(entry.dueDate) && entry.status !== "paid" ? "overdue" : entry.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            {entry.status !== "paid" && (
+                              <Button size="sm" variant="outline" onClick={() => openPaymentDialog(entry, "debit")}>
                                 <DollarSign className="h-4 w-4" />
                               </Button>
-                              <Button size="sm" variant="outline">
-                                <Phone className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
+                            )}
+                            <Button size="sm" variant="outline">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -620,77 +758,100 @@ export function CreditDebitLedger() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="overdue" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+        <TabsContent value="summary">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-600">
-                  <AlertCircle className="h-5 w-5" />
-                  Overdue Receivables
-                </CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Total Receivables</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {overdueCredit.map((entry) => {
-                    const daysOverdue = getDaysOverdue(entry.dueDate)
-                    return (
-                      <div key={entry.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <p className="font-medium">{entry.customerName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Rs{entry.remainingAmount.toLocaleString()} • {daysOverdue} days overdue
-                          </p>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button size="sm" onClick={() => sendReminder(entry)}>
-                            <MessageSquare className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <Phone className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {overdueCredit.length === 0 && (
-                    <p className="text-center text-muted-foreground py-4">No overdue receivables</p>
-                  )}
+                <div className="text-2xl font-bold text-green-600">
+                  ₹{creditEntries.reduce((sum, entry) => sum + entry.remainingAmount, 0).toLocaleString()}
                 </div>
+                <p className="text-xs text-muted-foreground">Money to receive</p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-600">
-                  <AlertCircle className="h-5 w-5" />
-                  Overdue Payables
-                </CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Total Payables</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {overdueDebit.map((entry) => {
-                    const daysOverdue = getDaysOverdue(entry.dueDate)
-                    return (
-                      <div key={entry.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <p className="font-medium">{entry.supplierName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Rs{entry.remainingAmount.toLocaleString()} • {daysOverdue} days overdue
-                          </p>
-                        </div>
-                        <Button size="sm" variant="destructive">
-                          Pay Now
-                        </Button>
-                      </div>
-                    )
-                  })}
-                  {overdueDebit.length === 0 && (
-                    <p className="text-center text-muted-foreground py-4">No overdue payables</p>
-                  )}
+                <div className="text-2xl font-bold text-red-600">
+                  ₹{debitEntries.reduce((sum, entry) => sum + entry.remainingAmount, 0).toLocaleString()}
                 </div>
+                <p className="text-xs text-muted-foreground">Money to pay</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Overdue Credits</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-orange-600">
+                  {creditEntries.filter((entry) => isOverdue(entry.dueDate) && entry.status !== "paid").length}
+                </div>
+                <p className="text-xs text-muted-foreground">Overdue receivables</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Overdue Debits</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  {debitEntries.filter((entry) => isOverdue(entry.dueDate) && entry.status !== "paid").length}
+                </div>
+                <p className="text-xs text-muted-foreground">Overdue payables</p>
               </CardContent>
             </Card>
           </div>
+
+          {/* Recent Payments */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Payments</CardTitle>
+              <CardDescription>Latest payment activities</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[...creditEntries, ...debitEntries]
+                  .filter((entry) => entry.paymentHistory.length > 0)
+                  .flatMap((entry) =>
+                    entry.paymentHistory.map((payment) => ({
+                      ...payment,
+                      entryType: "customerName" in entry ? "credit" : "debit",
+                      partyName: "customerName" in entry ? entry.customerName : entry.supplierName,
+                    })),
+                  )
+                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  .slice(0, 10)
+                  .map((payment, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {payment.entryType === "credit" ? (
+                          <TrendingUp className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <TrendingDown className="h-5 w-5 text-red-500" />
+                        )}
+                        <div>
+                          <p className="font-medium">{payment.partyName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {payment.method} • {payment.date}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium">₹{payment.amount.toLocaleString()}</p>
+                        <p className="text-sm text-muted-foreground">{payment.reference}</p>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,230 +20,19 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Users, Plus, Edit, Trash2, Phone, Mail, DollarSign, Target, Clock, Award } from "lucide-react"
-
-interface Employee {
-  id: string
-  name: string
-  email: string
-  phone: string
-  position: string
-  department: string
-  joinDate: string
-  salary: number
-  commission: number
-  status: "active" | "inactive" | "on-leave"
-  avatar?: string
-  address: string
-  emergencyContact: string
-  bankAccount: string
-  cnic: string
-  monthlySales: number
-  monthlyTarget: number
-  attendanceRate: number
-  performanceScore: number
-  totalSales: number
-  totalCommission: number
-}
-
-interface AttendanceRecord {
-  id: string
-  employeeId: string
-  employeeName: string
-  date: string
-  checkIn: string
-  checkOut: string
-  hoursWorked: number
-  status: "present" | "absent" | "late" | "half-day"
-  notes: string
-}
-
-interface SalaryRecord {
-  id: string
-  employeeId: string
-  employeeName: string
-  month: string
-  basicSalary: number
-  commission: number
-  bonus: number
-  deductions: number
-  totalSalary: number
-  status: "paid" | "pending" | "processing"
-  paidDate?: string
-}
+import { EmployeeService, type Employee, type AttendanceRecord, type SalaryRecord } from "@/lib/firebase-services"
+import { useToast } from "@/hooks/use-toast"
 
 export function EmployeeManagement() {
-  const [employees, setEmployees] = useState<Employee[]>([
-    {
-      id: "1",
-      name: "Ahmed Ali",
-      email: "ahmed.ali@powerproject.com",
-      phone: "+92-300-1234567",
-      position: "Sales Manager",
-      department: "Sales",
-      joinDate: "2023-01-15",
-      salary: 45000,
-      commission: 2.5,
-      status: "active",
-      address: "123 Main Street, Lahore",
-      emergencyContact: "+92-301-7654321",
-      bankAccount: "1234567890",
-      cnic: "12345-6789012-3",
-      monthlySales: 125000,
-      monthlyTarget: 150000,
-      attendanceRate: 95,
-      performanceScore: 88,
-      totalSales: 1250000,
-      totalCommission: 31250,
-    },
-    {
-      id: "2",
-      name: "Fatima Khan",
-      email: "fatima.khan@powerproject.com",
-      phone: "+92-301-9876543",
-      position: "Sales Associate",
-      department: "Sales",
-      joinDate: "2023-03-20",
-      salary: 35000,
-      commission: 2.0,
-      status: "active",
-      address: "456 Garden Town, Lahore",
-      emergencyContact: "+92-302-1234567",
-      bankAccount: "0987654321",
-      cnic: "54321-0987654-3",
-      monthlySales: 98000,
-      monthlyTarget: 100000,
-      attendanceRate: 92,
-      performanceScore: 85,
-      totalSales: 980000,
-      totalCommission: 19600,
-    },
-    {
-      id: "3",
-      name: "Hassan Sheikh",
-      email: "hassan.sheikh@powerproject.com",
-      phone: "+92-302-5555555",
-      position: "Store Assistant",
-      department: "Operations",
-      joinDate: "2023-06-10",
-      salary: 28000,
-      commission: 1.5,
-      status: "active",
-      address: "789 Model Town, Lahore",
-      emergencyContact: "+92-303-9876543",
-      bankAccount: "1122334455",
-      cnic: "11111-2222233-4",
-      monthlySales: 65000,
-      monthlyTarget: 80000,
-      attendanceRate: 88,
-      performanceScore: 78,
-      totalSales: 650000,
-      totalCommission: 9750,
-    },
-    {
-      id: "4",
-      name: "Sara Ahmed",
-      email: "sara.ahmed@powerproject.com",
-      phone: "+92-304-1111111",
-      position: "Cashier",
-      department: "Operations",
-      joinDate: "2023-08-01",
-      salary: 25000,
-      commission: 1.0,
-      status: "on-leave",
-      address: "321 DHA Phase 5, Lahore",
-      emergencyContact: "+92-305-5555555",
-      bankAccount: "5566778899",
-      cnic: "55555-6666677-8",
-      monthlySales: 45000,
-      monthlyTarget: 60000,
-      attendanceRate: 85,
-      performanceScore: 72,
-      totalSales: 450000,
-      totalCommission: 4500,
-    },
-  ])
-
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([
-    {
-      id: "1",
-      employeeId: "1",
-      employeeName: "Ahmed Ali",
-      date: "2024-01-15",
-      checkIn: "09:00",
-      checkOut: "18:00",
-      hoursWorked: 9,
-      status: "present",
-      notes: "",
-    },
-    {
-      id: "2",
-      employeeId: "2",
-      employeeName: "Fatima Khan",
-      date: "2024-01-15",
-      checkIn: "09:15",
-      checkOut: "18:00",
-      hoursWorked: 8.75,
-      status: "late",
-      notes: "Traffic delay",
-    },
-    {
-      id: "3",
-      employeeId: "3",
-      employeeName: "Hassan Sheikh",
-      date: "2024-01-15",
-      checkIn: "09:00",
-      checkOut: "13:00",
-      hoursWorked: 4,
-      status: "half-day",
-      notes: "Medical appointment",
-    },
-  ])
-
-  const [salaryRecords, setSalaryRecords] = useState<SalaryRecord[]>([
-    {
-      id: "1",
-      employeeId: "1",
-      employeeName: "Ahmed Ali",
-      month: "January 2024",
-      basicSalary: 45000,
-      commission: 3125,
-      bonus: 5000,
-      deductions: 2000,
-      totalSalary: 51125,
-      status: "paid",
-      paidDate: "2024-01-31",
-    },
-    {
-      id: "2",
-      employeeId: "2",
-      employeeName: "Fatima Khan",
-      month: "January 2024",
-      basicSalary: 35000,
-      commission: 1960,
-      bonus: 2000,
-      deductions: 1500,
-      totalSalary: 37460,
-      status: "paid",
-      paidDate: "2024-01-31",
-    },
-    {
-      id: "3",
-      employeeId: "3",
-      employeeName: "Hassan Sheikh",
-      month: "January 2024",
-      basicSalary: 28000,
-      commission: 975,
-      bonus: 1000,
-      deductions: 1000,
-      totalSalary: 28975,
-      status: "pending",
-    },
-  ])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
+  const [salaryRecords, setSalaryRecords] = useState<SalaryRecord[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false)
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false)
-  const [isSalaryOpen, setIsSalaryOpen] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
+  const { toast } = useToast()
 
   const [newEmployee, setNewEmployee] = useState({
     name: "",
@@ -258,6 +47,41 @@ export function EmployeeManagement() {
     bankAccount: "",
     cnic: "",
   })
+
+  const [attendanceForm, setAttendanceForm] = useState({
+    employeeId: "",
+    checkIn: "",
+    checkOut: "",
+    status: "",
+    notes: "",
+  })
+
+  // Load data from Firebase
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [employeesData, attendanceData, salaryData] = await Promise.all([
+          EmployeeService.getAllEmployees(),
+          EmployeeService.getAllAttendanceRecords(),
+          EmployeeService.getAllSalaryRecords(),
+        ])
+        setEmployees(employeesData)
+        setAttendanceRecords(attendanceData)
+        setSalaryRecords(salaryData)
+        setLoading(false)
+      } catch (error) {
+        console.error("Error loading data:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load employee data. Please refresh the page.",
+          variant: "destructive",
+        })
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [toast])
 
   const totalEmployees = employees.length
   const activeEmployees = employees.filter((emp) => emp.status === "active").length
@@ -298,45 +122,141 @@ export function EmployeeManagement() {
     }
   }
 
-  const handleAddEmployee = () => {
-    const employee: Employee = {
-      id: Date.now().toString(),
-      name: newEmployee.name,
-      email: newEmployee.email,
-      phone: newEmployee.phone,
-      position: newEmployee.position,
-      department: newEmployee.department,
-      joinDate: new Date().toISOString().split("T")[0],
-      salary: Number(newEmployee.salary),
-      commission: Number(newEmployee.commission),
-      status: "active",
-      address: newEmployee.address,
-      emergencyContact: newEmployee.emergencyContact,
-      bankAccount: newEmployee.bankAccount,
-      cnic: newEmployee.cnic,
-      monthlySales: 0,
-      monthlyTarget: 50000,
-      attendanceRate: 100,
-      performanceScore: 75,
-      totalSales: 0,
-      totalCommission: 0,
-    }
+  const handleAddEmployee = async () => {
+    try {
+      const employee: Omit<Employee, "id"> = {
+        name: newEmployee.name,
+        email: newEmployee.email,
+        phone: newEmployee.phone,
+        position: newEmployee.position,
+        department: newEmployee.department,
+        joinDate: new Date().toISOString().split("T")[0],
+        salary: Number(newEmployee.salary),
+        commission: Number(newEmployee.commission),
+        status: "active",
+        address: newEmployee.address,
+        emergencyContact: newEmployee.emergencyContact,
+        bankAccount: newEmployee.bankAccount,
+        cnic: newEmployee.cnic,
+        monthlySales: 0,
+        monthlyTarget: 50000,
+        attendanceRate: 100,
+        performanceScore: 75,
+        totalSales: 0,
+        totalCommission: 0,
+      }
 
-    setEmployees([...employees, employee])
-    setNewEmployee({
-      name: "",
-      email: "",
-      phone: "",
-      position: "",
-      department: "",
-      salary: "",
-      commission: "",
-      address: "",
-      emergencyContact: "",
-      bankAccount: "",
-      cnic: "",
-    })
-    setIsAddEmployeeOpen(false)
+      await EmployeeService.createEmployee(employee)
+
+      setNewEmployee({
+        name: "",
+        email: "",
+        phone: "",
+        position: "",
+        department: "",
+        salary: "",
+        commission: "",
+        address: "",
+        emergencyContact: "",
+        bankAccount: "",
+        cnic: "",
+      })
+      setIsAddEmployeeOpen(false)
+
+      toast({
+        title: "Employee Added",
+        description: "Employee has been successfully added to the system",
+      })
+
+      // Reload employees
+      const updatedEmployees = await EmployeeService.getAllEmployees()
+      setEmployees(updatedEmployees)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add employee. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleMarkAttendance = async () => {
+    try {
+      const employee = employees.find((emp) => emp.id === attendanceForm.employeeId)
+      if (!employee) return
+
+      const checkInTime = new Date(`2024-01-01 ${attendanceForm.checkIn}`)
+      const checkOutTime = new Date(`2024-01-01 ${attendanceForm.checkOut}`)
+      const hoursWorked = (checkOutTime.getTime() - checkInTime.getTime()) / (1000 * 60 * 60)
+
+      const attendanceRecord: Omit<AttendanceRecord, "id"> = {
+        employeeId: attendanceForm.employeeId,
+        employeeName: employee.name,
+        date: new Date().toISOString().split("T")[0],
+        checkIn: attendanceForm.checkIn,
+        checkOut: attendanceForm.checkOut,
+        hoursWorked: Math.max(0, hoursWorked),
+        status: attendanceForm.status as "present" | "absent" | "late" | "half-day",
+        notes: attendanceForm.notes,
+      }
+
+      await EmployeeService.createAttendanceRecord(attendanceRecord)
+
+      setAttendanceForm({
+        employeeId: "",
+        checkIn: "",
+        checkOut: "",
+        status: "",
+        notes: "",
+      })
+      setIsAttendanceOpen(false)
+
+      toast({
+        title: "Attendance Marked",
+        description: "Attendance has been successfully recorded",
+      })
+
+      // Reload attendance records
+      const updatedAttendance = await EmployeeService.getAllAttendanceRecords()
+      setAttendanceRecords(updatedAttendance)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to mark attendance. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeleteEmployee = async (id: string) => {
+    try {
+      await EmployeeService.deleteEmployee(id)
+      toast({
+        title: "Employee Deleted",
+        description: "Employee has been successfully removed from the system",
+      })
+
+      // Reload employees
+      const updatedEmployees = await EmployeeService.getAllEmployees()
+      setEmployees(updatedEmployees)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete employee. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading employees...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -359,7 +279,10 @@ export function EmployeeManagement() {
               <div className="space-y-4">
                 <div>
                   <Label>Select Employee</Label>
-                  <Select>
+                  <Select
+                    value={attendanceForm.employeeId}
+                    onValueChange={(value) => setAttendanceForm({ ...attendanceForm, employeeId: value })}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Choose employee" />
                     </SelectTrigger>
@@ -377,16 +300,27 @@ export function EmployeeManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Check In Time</Label>
-                    <Input type="time" />
+                    <Input
+                      type="time"
+                      value={attendanceForm.checkIn}
+                      onChange={(e) => setAttendanceForm({ ...attendanceForm, checkIn: e.target.value })}
+                    />
                   </div>
                   <div>
                     <Label>Check Out Time</Label>
-                    <Input type="time" />
+                    <Input
+                      type="time"
+                      value={attendanceForm.checkOut}
+                      onChange={(e) => setAttendanceForm({ ...attendanceForm, checkOut: e.target.value })}
+                    />
                   </div>
                 </div>
                 <div>
                   <Label>Status</Label>
-                  <Select>
+                  <Select
+                    value={attendanceForm.status}
+                    onValueChange={(value) => setAttendanceForm({ ...attendanceForm, status: value })}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
@@ -400,13 +334,17 @@ export function EmployeeManagement() {
                 </div>
                 <div>
                   <Label>Notes</Label>
-                  <Input placeholder="Additional notes" />
+                  <Input
+                    placeholder="Additional notes"
+                    value={attendanceForm.notes}
+                    onChange={(e) => setAttendanceForm({ ...attendanceForm, notes: e.target.value })}
+                  />
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setIsAttendanceOpen(false)}>
                     Cancel
                   </Button>
-                  <Button>Mark Attendance</Button>
+                  <Button onClick={handleMarkAttendance}>Mark Attendance</Button>
                 </div>
               </div>
             </DialogContent>
@@ -509,7 +447,7 @@ export function EmployeeManagement() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="salary">Monthly Salary (Rs)</Label>
+                    <Label htmlFor="salary">Monthly Salary (₹)</Label>
                     <Input
                       id="salary"
                       type="number"
@@ -591,7 +529,7 @@ export function EmployeeManagement() {
             <CardTitle className="text-sm font-medium">Monthly Salary Cost</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Rs{totalMonthlySalary.toLocaleString()}</div>
+            <div className="text-2xl font-bold">₹{totalMonthlySalary.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Base salaries</p>
           </CardContent>
         </Card>
@@ -601,7 +539,7 @@ export function EmployeeManagement() {
             <CardTitle className="text-sm font-medium">Monthly Commission</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Rs{totalMonthlyCommission.toLocaleString()}</div>
+            <div className="text-2xl font-bold">₹{totalMonthlyCommission.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Performance based</p>
           </CardContent>
         </Card>
@@ -612,7 +550,10 @@ export function EmployeeManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {Math.round(employees.reduce((sum, emp) => sum + emp.performanceScore, 0) / employees.length)}%
+              {employees.length > 0
+                ? Math.round(employees.reduce((sum, emp) => sum + emp.performanceScore, 0) / employees.length)
+                : 0}
+              %
             </div>
             <p className="text-xs text-muted-foreground">Team average</p>
           </CardContent>
@@ -689,7 +630,7 @@ export function EmployeeManagement() {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">Rs{employee.salary.toLocaleString()}</p>
+                            <p className="font-medium">₹{employee.salary.toLocaleString()}</p>
                             <p className="text-xs text-muted-foreground">{employee.commission}% commission</p>
                           </div>
                         </TableCell>
@@ -703,7 +644,7 @@ export function EmployeeManagement() {
                             </div>
                             <Progress value={employee.performanceScore} className="h-2" />
                             <p className="text-xs text-muted-foreground">
-                              Sales: Rs{employee.monthlySales.toLocaleString()}
+                              Sales: ₹{employee.monthlySales.toLocaleString()}
                             </p>
                           </div>
                         </TableCell>
@@ -718,7 +659,7 @@ export function EmployeeManagement() {
                             <Button size="sm" variant="outline">
                               <Phone className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" onClick={() => handleDeleteEmployee(employee.id)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -764,7 +705,7 @@ export function EmployeeManagement() {
                         <TableCell>{record.date}</TableCell>
                         <TableCell>{record.checkIn}</TableCell>
                         <TableCell>{record.checkOut}</TableCell>
-                        <TableCell>{record.hoursWorked} hrs</TableCell>
+                        <TableCell>{record.hoursWorked.toFixed(1)} hrs</TableCell>
                         <TableCell>
                           <Badge variant={getAttendanceColor(record.status) as any}>{record.status}</Badge>
                         </TableCell>
@@ -810,12 +751,12 @@ export function EmployeeManagement() {
                           <p className="font-medium">{record.employeeName}</p>
                         </TableCell>
                         <TableCell>{record.month}</TableCell>
-                        <TableCell>Rs{record.basicSalary.toLocaleString()}</TableCell>
-                        <TableCell>Rs{record.commission.toLocaleString()}</TableCell>
-                        <TableCell>Rs{record.bonus.toLocaleString()}</TableCell>
-                        <TableCell>Rs{record.deductions.toLocaleString()}</TableCell>
+                        <TableCell>₹{record.basicSalary.toLocaleString()}</TableCell>
+                        <TableCell>₹{record.commission.toLocaleString()}</TableCell>
+                        <TableCell>₹{record.bonus.toLocaleString()}</TableCell>
+                        <TableCell>₹{record.deductions.toLocaleString()}</TableCell>
                         <TableCell>
-                          <span className="font-medium">Rs{record.totalSalary.toLocaleString()}</span>
+                          <span className="font-medium">₹{record.totalSalary.toLocaleString()}</span>
                         </TableCell>
                         <TableCell>
                           <Badge
@@ -874,10 +815,10 @@ export function EmployeeManagement() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Monthly Sales</p>
-                      <p className="text-lg font-bold">Rs{employee.monthlySales.toLocaleString()}</p>
+                      <p className="text-lg font-bold">₹{employee.monthlySales.toLocaleString()}</p>
                       <Progress value={(employee.monthlySales / employee.monthlyTarget) * 100} className="h-2 mt-1" />
                       <p className="text-xs text-muted-foreground">
-                        Target: Rs{employee.monthlyTarget.toLocaleString()}
+                        Target: ₹{employee.monthlyTarget.toLocaleString()}
                       </p>
                     </div>
                     <div>
@@ -896,7 +837,7 @@ export function EmployeeManagement() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Total Commission</p>
-                      <p className="text-lg font-bold">Rs{employee.totalCommission.toLocaleString()}</p>
+                      <p className="text-lg font-bold">₹{employee.totalCommission.toLocaleString()}</p>
                     </div>
                   </div>
 

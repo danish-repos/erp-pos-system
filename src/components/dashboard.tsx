@@ -1,46 +1,181 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, Users, AlertTriangle, Package } from "lucide-react"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts"
+import { TrendingUp, Users, Package, ShoppingCart, AlertTriangle, DollarSign, Clock } from "lucide-react"
+import {
+  ProductService,
+  EmployeeService,
+  SalesService,
+  InventoryService,
+  LedgerService,
+  type SaleRecord,
+} from "@/lib/firebase-services"
+
+interface StockAlert {
+  id: string
+  name: string
+  currentStock: number
+  minStock: number
+  status: "out" | "low" | "critical"
+}
+
+interface DashboardStats {
+  totalProducts: number
+  totalEmployees: number
+  todaySales: number
+  monthlyRevenue: number
+  pendingCredits: number
+  pendingDebits: number
+  lowStockItems: number
+  activeEmployees: number
+}
 
 export function Dashboard() {
-  const salesData = {
-    today: 15420,
-    yesterday: 12350,
-    month: 456780,
-    lastMonth: 398650,
+  const [stats, setStats] = useState<DashboardStats>({
+    totalProducts: 0,
+    totalEmployees: 0,
+    todaySales: 0,
+    monthlyRevenue: 0,
+    pendingCredits: 0,
+    pendingDebits: 0,
+    lowStockItems: 0,
+    activeEmployees: 0,
+  })
+
+  const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([])
+  const [recentSales, setRecentSales] = useState<SaleRecord[]>([])
+  const [topProducts, setTopProducts] = useState<any[]>([])
+  const [salesTrend, setSalesTrend] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        // Load all data
+        const [products, employees, sales, inventory, credits, debits] = await Promise.all([
+          ProductService.getAllProducts(),
+          EmployeeService.getAllEmployees(),
+          SalesService.getAllSales(),
+          InventoryService.getAllInventoryItems(),
+          LedgerService.getAllCreditEntries(),
+          LedgerService.getAllDebitEntries(),
+        ])
+
+        // Calculate stats
+        const today = new Date().toISOString().split("T")[0]
+        const currentMonth = new Date().toISOString().slice(0, 7)
+
+        const todaySalesData = sales.filter((sale) => sale.date === today)
+        const monthlySalesData = sales.filter((sale) => sale.date.startsWith(currentMonth))
+
+        const newStats: DashboardStats = {
+          totalProducts: products.length,
+          totalEmployees: employees.length,
+          todaySales: todaySalesData.reduce((sum, sale) => sum + sale.total, 0),
+          monthlyRevenue: monthlySalesData.reduce((sum, sale) => sum + sale.total, 0),
+          pendingCredits: credits.filter((c) => c.status === "pending" || c.status === "partial").length,
+          pendingDebits: debits.filter((d) => d.status === "pending" || d.status === "partial").length,
+          lowStockItems: products.filter((p) => p.stock <= (p.minStock || 5)).length,
+          activeEmployees: employees.filter((e) => e.status === "active").length,
+        }
+
+        setStats(newStats)
+
+        // Generate stock alerts
+        const alerts: StockAlert[] = products
+          .filter((product) => product.stock <= (product.minStock || 5))
+          .map((product) => ({
+            id: product.id,
+            name: product.name,
+            currentStock: product.stock,
+            minStock: product.minStock || 5,
+            status: (product.stock === 0 ? "out" : product.stock <= 2 ? "critical" : "low") as
+              | "out"
+              | "low"
+              | "critical",
+          }))
+
+        setStockAlerts(alerts)
+
+        // Recent sales (last 5)
+        const sortedSales = sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        setRecentSales(sortedSales.slice(0, 5))
+
+        // Top products by sales
+        const productSales = sales.reduce(
+          (acc, sale) => {
+            sale.items.forEach((item) => {
+              if (!acc[item.name]) {
+                acc[item.name] = { name: item.name, quantity: 0, revenue: 0 }
+              }
+              acc[item.name].quantity += item.quantity
+              acc[item.name].revenue += item.finalPrice * item.quantity
+            })
+            return acc
+          },
+          {} as Record<string, any>,
+        )
+
+        const topProductsData = Object.values(productSales)
+          .sort((a: any, b: any) => b.revenue - a.revenue)
+          .slice(0, 5)
+
+        setTopProducts(topProductsData)
+
+        // Sales trend (last 7 days)
+        const last7Days = Array.from({ length: 7 }, (_, i) => {
+          const date = new Date()
+          date.setDate(date.getDate() - i)
+          return date.toISOString().split("T")[0]
+        }).reverse()
+
+        const trendData = last7Days.map((date) => {
+          const daySales = sales.filter((sale) => sale.date === date)
+          return {
+            date: new Date(date).toLocaleDateString("en-US", { weekday: "short" }),
+            sales: daySales.reduce((sum, sale) => sum + sale.total, 0),
+            orders: daySales.length,
+          }
+        })
+
+        setSalesTrend(trendData)
+        setLoading(false)
+      } catch (error) {
+        console.error("Error loading dashboard data:", error)
+        setLoading(false)
+      }
+    }
+
+    loadDashboardData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    )
   }
-
-  const topBargainedItems = [
-    { name: "Cotton Kurta - Blue", originalPrice: 1200, finalPrice: 950, discount: 21 },
-    { name: "Silk Dupatta - Red", originalPrice: 800, finalPrice: 650, discount: 19 },
-    { name: "Linen Shirt - White", originalPrice: 1500, finalPrice: 1250, discount: 17 },
-  ]
-
-  const stockAlerts = [
-    { item: "Cotton Fabric - Black", stock: 5, minStock: 20, status: "critical" },
-    { item: "Silk Thread - Gold", stock: 12, minStock: 15, status: "low" },
-    { item: "Buttons - Pearl", stock: 8, minStock: 25, status: "critical" },
-  ]
-
-  const employeeSales = [
-    { name: "Ahmed Ali", sales: 25400, target: 30000, performance: 85 },
-    { name: "Fatima Khan", sales: 32100, target: 30000, performance: 107 },
-    { name: "Hassan Sheikh", sales: 18900, target: 25000, performance: 76 },
-  ]
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <Badge variant="outline" className="text-sm">
-          Last updated: {new Date().toLocaleTimeString()}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            Last updated: {new Date().toLocaleTimeString()}
+          </Badge>
+        </div>
       </div>
 
-      {/* Sales Overview */}
+      {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -48,164 +183,193 @@ export function Dashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Rs{salesData.today.toLocaleString()}</div>
+            <div className="text-2xl font-bold">₹{stats.todaySales.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              <TrendingUp className="inline h-3 w-3 text-green-500" /> +
-              {Math.round(((salesData.today - salesData.yesterday) / salesData.yesterday) * 100)}% from yesterday
+              <TrendingUp className="inline h-3 w-3 mr-1" />
+              +12% from yesterday
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Sales</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Rs{salesData.month.toLocaleString()}</div>
+            <div className="text-2xl font-bold">₹{stats.monthlyRevenue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              <TrendingUp className="inline h-3 w-3 text-green-500" /> +
-              {Math.round(((salesData.month - salesData.lastMonth) / salesData.lastMonth) * 100)}% from last month
+              <TrendingUp className="inline h-3 w-3 mr-1" />
+              +8% from last month
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Credit Balance</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalProducts}</div>
+            <p className="text-xs text-muted-foreground">{stats.lowStockItems} items low stock</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Staff</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">Rs45,230</div>
-            <p className="text-xs text-muted-foreground">12 customers pending</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock Alerts</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">8</div>
-            <p className="text-xs text-muted-foreground">Items need restocking</p>
+            <div className="text-2xl font-bold">{stats.activeEmployees}</div>
+            <p className="text-xs text-muted-foreground">of {stats.totalEmployees} total employees</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Top Bargained Items */}
+      {/* Charts Row */}
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingDown className="h-5 w-5" />
-              Top Bargained Items Today
-            </CardTitle>
-            <CardDescription>Items with highest discount rates</CardDescription>
+            <CardTitle>Sales Trend (Last 7 Days)</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {topBargainedItems.map((item, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">{item.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Rs{item.originalPrice} → Rs{item.finalPrice}
-                  </p>
-                </div>
-                <Badge variant="destructive">{item.discount}% off</Badge>
-              </div>
-            ))}
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={salesTrend}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip formatter={(value) => [`₹${value}`, "Sales"]} />
+                <Line type="monotone" dataKey="sales" stroke="#8884d8" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Stock Alerts */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Products by Revenue</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={topProducts}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip formatter={(value) => [`₹${value}`, "Revenue"]} />
+                <Bar dataKey="revenue" fill="#82ca9d" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Alerts and Recent Activity */}
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
               Stock Alerts
             </CardTitle>
-            <CardDescription>Items running low on inventory</CardDescription>
+            <CardDescription>Items requiring immediate attention</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {stockAlerts.map((item, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{item.item}</p>
-                  <Badge variant={item.status === "critical" ? "destructive" : "secondary"}>{item.status}</Badge>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Stock: {item.stock}</span>
-                    <span>Min: {item.minStock}</span>
+          <CardContent>
+            <div className="space-y-3">
+              {stockAlerts.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">No stock alerts</p>
+              ) : (
+                stockAlerts.map((alert) => (
+                  <div key={alert.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{alert.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Current: {alert.currentStock} | Min: {alert.minStock}
+                      </p>
+                    </div>
+                    <Badge
+                      variant={
+                        alert.status === "out"
+                          ? "destructive"
+                          : alert.status === "critical"
+                            ? "destructive"
+                            : "secondary"
+                      }
+                    >
+                      {alert.status}
+                    </Badge>
                   </div>
-                  <Progress value={(item.stock / item.minStock) * 100} className="h-2" />
-                </div>
-              </div>
-            ))}
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-5 w-5" />
+              Recent Sales
+            </CardTitle>
+            <CardDescription>Latest transactions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentSales.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">No recent sales</p>
+              ) : (
+                recentSales.map((sale) => (
+                  <div key={sale.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">#{sale.invoiceNumber}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {sale.customerName} • {sale.date}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">₹{sale.total.toLocaleString()}</p>
+                      <Badge variant={sale.paymentStatus === "paid" ? "default" : "secondary"}>
+                        {sale.paymentStatus}
+                      </Badge>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Employee Performance */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Employee Sales Performance
-          </CardTitle>
-          <CardDescription>Monthly sales performance vs targets</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {employeeSales.map((employee, index) => (
-              <div key={index} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">{employee.name}</p>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">Rs{employee.sales.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">Target: Rs{employee.target.toLocaleString()}</p>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Progress value={employee.performance} className="h-2" />
-                  <p className="text-xs text-muted-foreground">{employee.performance}% of target achieved</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Quick Stats */}
+      {/* Financial Overview */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Disposal Loss (This Month)</CardTitle>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Pending Credits</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">Rs8,450</div>
-            <p className="text-xs text-muted-foreground">15 items disposed</p>
-          </CardContent>
-        </Card>
-
-        <Card>  
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Best Seller</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-lg font-bold">Cotton Kurta Set</div>
-            <p className="text-xs text-muted-foreground">45 units sold this month</p>
+            <div className="text-2xl font-bold text-orange-600">{stats.pendingCredits}</div>
+            <p className="text-xs text-muted-foreground">Customer payments due</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Worst Seller</CardTitle>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Pending Debits</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-bold">Silk Saree - Heavy</div>
-            <p className="text-xs text-muted-foreground">2 units sold this month</p>
+            <div className="text-2xl font-bold text-red-600">{stats.pendingDebits}</div>
+            <p className="text-xs text-muted-foreground">Supplier payments due</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{stats.lowStockItems}</div>
+            <p className="text-xs text-muted-foreground">Items need restocking</p>
           </CardContent>
         </Card>
       </div>

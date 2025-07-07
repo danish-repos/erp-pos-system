@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Plus, Edit, Trash2, Search, Package, Upload, History, TrendingUp, TrendingDown } from "lucide-react"
+import { ProductService } from "@/lib/firebase-services"
+import { useToast } from "@/hooks/use-toast"
 
 interface Product {
   id: string
@@ -30,6 +32,7 @@ interface Product {
   maxSalePrice: number
   currentPrice: number
   stock: number
+  minStock: number
   supplier: string
   batchInfo: string
   status: "active" | "inactive" | "discontinued"
@@ -37,63 +40,13 @@ interface Product {
 }
 
 export function ProductManagement() {
-  const [products, setProducts] = useState<Product[]>([
-    {
-      id: "1",
-      name: "Cotton Kurta",
-      code: "CK001",
-      fabricType: "Cotton",
-      size: "L",
-      color: "Blue",
-      purchaseCost: 600,
-      minSalePrice: 900,
-      maxSalePrice: 1500,
-      currentPrice: 1200,
-      stock: 15,
-      supplier: "Textile Mills Ltd",
-      batchInfo: "Batch-2024-001",
-      status: "active",
-      createdDate: "2024-01-15",
-    },
-    {
-      id: "2",
-      name: "Silk Dupatta",
-      code: "SD002",
-      fabricType: "Silk",
-      size: "Standard",
-      color: "Red",
-      purchaseCost: 400,
-      minSalePrice: 650,
-      maxSalePrice: 1000,
-      currentPrice: 800,
-      stock: 8,
-      supplier: "Silk Weavers Co",
-      batchInfo: "Batch-2024-002",
-      status: "active",
-      createdDate: "2024-01-20",
-    },
-    {
-      id: "3",
-      name: "Linen Shirt",
-      code: "LS003",
-      fabricType: "Linen",
-      size: "M",
-      color: "White",
-      purchaseCost: 800,
-      minSalePrice: 1200,
-      maxSalePrice: 2000,
-      currentPrice: 1500,
-      stock: 12,
-      supplier: "Premium Fabrics",
-      batchInfo: "Batch-2024-003",
-      status: "active",
-      createdDate: "2024-02-01",
-    },
-  ])
-
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const { toast } = useToast()
+
   const [newProduct, setNewProduct] = useState({
     name: "",
     code: "",
@@ -105,9 +58,20 @@ export function ProductManagement() {
     maxSalePrice: "",
     currentPrice: "",
     stock: "",
+    minStock: "",
     supplier: "",
     batchInfo: "",
   })
+
+  // Load products from Firebase
+  useEffect(() => {
+    const unsubscribe = ProductService.subscribeToProducts((productsData) => {
+      setProducts(productsData)
+      setLoading(false)
+    })
+
+    return unsubscribe
+  }, [])
 
   const filteredProducts = products.filter(
     (product) =>
@@ -116,41 +80,72 @@ export function ProductManagement() {
       product.fabricType.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  const handleAddProduct = () => {
-    const product: Product = {
-      id: Date.now().toString(),
-      name: newProduct.name,
-      code: newProduct.code,
-      fabricType: newProduct.fabricType,
-      size: newProduct.size,
-      color: newProduct.color,
-      purchaseCost: Number(newProduct.purchaseCost),
-      minSalePrice: Number(newProduct.minSalePrice),
-      maxSalePrice: Number(newProduct.maxSalePrice),
-      currentPrice: Number(newProduct.currentPrice),
-      stock: Number(newProduct.stock),
-      supplier: newProduct.supplier,
-      batchInfo: newProduct.batchInfo,
-      status: "active",
-      createdDate: new Date().toISOString().split("T")[0],
-    }
+  const handleAddProduct = async () => {
+    try {
+      const product: Omit<Product, "id"> = {
+        name: newProduct.name,
+        code: newProduct.code,
+        fabricType: newProduct.fabricType,
+        size: newProduct.size,
+        color: newProduct.color,
+        purchaseCost: Number(newProduct.purchaseCost),
+        minSalePrice: Number(newProduct.minSalePrice),
+        maxSalePrice: Number(newProduct.maxSalePrice),
+        currentPrice: Number(newProduct.currentPrice),
+        stock: Number(newProduct.stock),
+        minStock: Number(newProduct.minStock),
+        supplier: newProduct.supplier,
+        batchInfo: newProduct.batchInfo,
+        status: "active",
+        createdDate: new Date().toISOString().split("T")[0],
+      }
 
-    setProducts([...products, product])
-    setNewProduct({
-      name: "",
-      code: "",
-      fabricType: "",
-      size: "",
-      color: "",
-      purchaseCost: "",
-      minSalePrice: "",
-      maxSalePrice: "",
-      currentPrice: "",
-      stock: "",
-      supplier: "",
-      batchInfo: "",
-    })
-    setIsAddDialogOpen(false)
+      await ProductService.createProduct(product)
+
+      setNewProduct({
+        name: "",
+        code: "",
+        fabricType: "",
+        size: "",
+        color: "",
+        purchaseCost: "",
+        minSalePrice: "",
+        maxSalePrice: "",
+        currentPrice: "",
+        stock: "",
+        minStock: "",
+        supplier: "",
+        batchInfo: "",
+      })
+      setIsAddDialogOpen(false)
+
+      toast({
+        title: "Product Added",
+        description: "Product has been successfully added to inventory",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add product. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeleteProduct = async (id: string) => {
+    try {
+      await ProductService.deleteProduct(id)
+      toast({
+        title: "Product Deleted",
+        description: "Product has been successfully deleted",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete product. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const getMarginPercentage = (product: Product) => {
@@ -161,6 +156,17 @@ export function ProductManagement() {
     if (stock <= 5) return { status: "critical", color: "destructive" }
     if (stock <= 10) return { status: "low", color: "secondary" }
     return { status: "good", color: "default" }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading products...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -254,7 +260,7 @@ export function ProductManagement() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="purchaseCost">Purchase Cost (Rs)</Label>
+                  <Label htmlFor="purchaseCost">Purchase Cost (₹)</Label>
                   <Input
                     id="purchaseCost"
                     type="number"
@@ -275,9 +281,20 @@ export function ProductManagement() {
                 </div>
               </div>
 
+              <div>
+                <Label htmlFor="minStock">Min Stock Level</Label>
+                <Input
+                  id="minStock"
+                  type="number"
+                  value={newProduct.minStock}
+                  onChange={(e) => setNewProduct({ ...newProduct, minStock: e.target.value })}
+                  placeholder="5"
+                />
+              </div>
+
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <Label htmlFor="minSalePrice">Min Sale Price (Rs)</Label>
+                  <Label htmlFor="minSalePrice">Min Sale Price (₹)</Label>
                   <Input
                     id="minSalePrice"
                     type="number"
@@ -287,7 +304,7 @@ export function ProductManagement() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="maxSalePrice">Max Sale Price (Rs)</Label>
+                  <Label htmlFor="maxSalePrice">Max Sale Price (₹)</Label>
                   <Input
                     id="maxSalePrice"
                     type="number"
@@ -297,7 +314,7 @@ export function ProductManagement() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="currentPrice">Current Price (Rs)</Label>
+                  <Label htmlFor="currentPrice">Current Price (₹)</Label>
                   <Input
                     id="currentPrice"
                     type="number"
@@ -414,12 +431,12 @@ export function ProductManagement() {
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell>Rs{product.purchaseCost.toLocaleString()}</TableCell>
+                      <TableCell>₹{product.purchaseCost.toLocaleString()}</TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">Rs{product.currentPrice.toLocaleString()}</p>
+                          <p className="font-medium">₹{product.currentPrice.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">
-                            Range: Rs{product.minSalePrice} - Rs{product.maxSalePrice}
+                            Range: ₹{product.minSalePrice} - ₹{product.maxSalePrice}
                           </p>
                         </div>
                       </TableCell>
@@ -450,7 +467,7 @@ export function ProductManagement() {
                           <Button size="sm" variant="outline">
                             <History className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="outline">
+                          <Button size="sm" variant="outline" onClick={() => handleDeleteProduct(product.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -492,7 +509,10 @@ export function ProductManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {Math.round(products.reduce((sum, p) => sum + getMarginPercentage(p), 0) / products.length)}%
+              {products.length > 0
+                ? Math.round(products.reduce((sum, p) => sum + getMarginPercentage(p), 0) / products.length)
+                : 0}
+              %
             </div>
             <p className="text-xs text-muted-foreground">Profit margin</p>
           </CardContent>
@@ -504,7 +524,7 @@ export function ProductManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              Rs{products.reduce((sum, p) => sum + p.currentPrice * p.stock, 0).toLocaleString()}
+              ₹{products.reduce((sum, p) => sum + p.currentPrice * p.stock, 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">At current prices</p>
           </CardContent>
