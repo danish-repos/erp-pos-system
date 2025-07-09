@@ -5,15 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts"
 import { TrendingUp, Users, Package, ShoppingCart, AlertTriangle, DollarSign, Clock } from "lucide-react"
-import {
-  ProductService,
-  EmployeeService,
-  SalesService,
-  InventoryService,
-  LedgerService,
-  type SaleRecord,
-} from "@/lib/firebase-services"
+import { ProductService, EmployeeService, SalesService, InventoryService, LedgerService, type SaleRecord } from "@/lib/firebase-services"
 
+// Defining the types of the things used in the dashboard page. 
 interface StockAlert {
   id: string
   name: string
@@ -47,14 +41,15 @@ export function Dashboard() {
 
   const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([])
   const [recentSales, setRecentSales] = useState<SaleRecord[]>([])
-  const [topProducts, setTopProducts] = useState<any[]>([])
-  const [salesTrend, setSalesTrend] = useState<any[]>([])
+  const [topProducts, setTopProducts] = useState<unknown[]>([])
+  const [salesTrend, setSalesTrend] = useState<unknown[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Loading all the data needed for the dashboard from the database.
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
-        // Load all data
+
         const [products, employees, sales, inventory, credits, debits] = await Promise.all([
           ProductService.getAllProducts(),
           EmployeeService.getAllEmployees(),
@@ -116,11 +111,12 @@ export function Dashboard() {
             })
             return acc
           },
-          {} as Record<string, any>,
+          {} as Record<string, unknown>,
         )
 
+       
         const topProductsData = Object.values(productSales)
-          .sort((a: any, b: any) => b.revenue - a.revenue)
+          .sort((a: any, b: any) => (b.revenue as number) - (a.revenue as number))
           .slice(0, 5)
 
         setTopProducts(topProductsData)
@@ -186,7 +182,7 @@ export function Dashboard() {
             <div className="text-2xl font-bold">₹{stats.todaySales.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               <TrendingUp className="inline h-3 w-3 mr-1" />
-              +12% from yesterday
+              ...
             </p>
           </CardContent>
         </Card>
@@ -200,7 +196,7 @@ export function Dashboard() {
             <div className="text-2xl font-bold">₹{stats.monthlyRevenue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               <TrendingUp className="inline h-3 w-3 mr-1" />
-              +8% from last month
+             ...
             </p>
           </CardContent>
         </Card>

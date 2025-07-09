@@ -7,29 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Search,
-  Plus,
-  Minus,
-  Trash2,
-  User,
-  CreditCard,
-  Smartphone,
-  Banknote,
-  Printer,
-  MessageSquare,
-  ShoppingCart,
-} from "lucide-react"
-import {
-  ProductService,
-  SalesService,
-  EmployeeService,
-  type Product,
-  type Employee,
-  type SaleItem,
-} from "@/lib/firebase-services"
+import { Search, Plus, Minus, Trash2, User, CreditCard, Smartphone, Banknote, Printer, MessageSquare, ShoppingCart, AlertTriangle } from "lucide-react"
+import { ProductService, SalesService, EmployeeService, type Product, type Employee, type SaleItem } from "@/lib/firebase-services"
 import { useToast } from "@/hooks/use-toast"
 
+// Defining the types for cart items
 interface CartItem {
   id: string
   name: string
@@ -38,6 +20,7 @@ interface CartItem {
   quantity: number
   discount: number
   finalPrice: number
+  availableStock: number
 }
 
 export function POSModule() {
@@ -85,7 +68,18 @@ export function POSModule() {
 
   const addToCart = (product: Product) => {
     const existingItem = cart.find((item) => item.id === product.id)
+    
     if (existingItem) {
+      // Check if adding one more would exceed stock
+      if (existingItem.quantity + 1 > product.stock) {
+        toast({
+          title: "Insufficient Stock",
+          description: `Only ${product.stock} units available for ${product.name}`,
+          variant: "destructive",
+        })
+        return
+      }
+      
       setCart(
         cart.map((item) =>
           item.id === product.id
@@ -94,6 +88,16 @@ export function POSModule() {
         ),
       )
     } else {
+      // Check if product has stock
+      if (product.stock <= 0) {
+        toast({
+          title: "Out of Stock",
+          description: `${product.name} is out of stock`,
+          variant: "destructive",
+        })
+        return
+      }
+      
       setCart([
         ...cart,
         {
@@ -104,6 +108,7 @@ export function POSModule() {
           quantity: 1,
           discount: 0,
           finalPrice: product.currentPrice,
+          availableStock: product.stock,
         },
       ])
     }
@@ -112,15 +117,29 @@ export function POSModule() {
   const updateQuantity = (id: string, newQuantity: number) => {
     if (newQuantity <= 0) {
       setCart(cart.filter((item) => item.id !== id))
-    } else {
-      setCart(
-        cart.map((item) =>
-          item.id === id
-            ? { ...item, quantity: newQuantity, finalPrice: newQuantity * (item.price - item.discount) }
-            : item,
-        ),
-      )
+      return
     }
+
+    const product = products.find((p) => p.id === id)
+    if (!product) return
+
+    // Check if new quantity exceeds available stock
+    if (newQuantity > product.stock) {
+      toast({
+        title: "Insufficient Stock",
+        description: `Only ${product.stock} units available for ${product.name}`,
+        variant: "destructive",
+      })
+      return
+    }
+
+    setCart(
+      cart.map((item) =>
+        item.id === id
+          ? { ...item, quantity: newQuantity, finalPrice: newQuantity * (item.price - item.discount) }
+          : item,
+      ),
+    )
   }
 
   const updateDiscount = (id: string, discount: number) => {
@@ -139,6 +158,12 @@ export function POSModule() {
   const totalDiscount = cart.reduce((sum, item) => sum + item.discount * item.quantity, 0)
   const total = cart.reduce((sum, item) => sum + item.finalPrice, 0)
 
+  // Check if any cart item exceeds stock
+  const hasStockIssues = cart.some((item) => {
+    const product = products.find((p) => p.id === item.id)
+    return product ? item.quantity > product.stock : false
+  })
+
   const handleCheckout = async () => {
     if (cart.length === 0) {
       toast({
@@ -153,6 +178,32 @@ export function POSModule() {
       toast({
         title: "Missing Information",
         description: "Please select payment method and staff member",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Final stock validation before checkout
+    const stockValidation = cart.map((item) => {
+      const product = products.find((p) => p.id === item.id)
+      return {
+        item,
+        product,
+        hasStock: product ? item.quantity <= product.stock : false,
+        availableStock: product?.stock || 0,
+      }
+    })
+
+    const itemsWithoutStock = stockValidation.filter((validation) => !validation.hasStock)
+
+    if (itemsWithoutStock.length > 0) {
+      const errorMessage = itemsWithoutStock
+        .map((validation) => `${validation.item.name}: Need ${validation.item.quantity}, Available ${validation.availableStock}`)
+        .join(", ")
+      
+      toast({
+        title: "Insufficient Stock",
+        description: `Cannot complete sale. ${errorMessage}`,
         variant: "destructive",
       })
       return
@@ -201,6 +252,15 @@ export function POSModule() {
         }
       }
 
+      // Update local products state to reflect new stock levels
+      setProducts(products.map(product => {
+        const cartItem = cart.find(item => item.id === product.id)
+        if (cartItem) {
+          return { ...product, stock: product.stock - cartItem.quantity }
+        }
+        return product
+      }))
+
       toast({
         title: "Sale Completed",
         description: `Sale completed successfully! Total: ₹${total.toLocaleString()}`,
@@ -211,6 +271,7 @@ export function POSModule() {
       setCustomerName("")
       setCustomerPhone("")
       setPaymentMethod("")
+      
     } catch (error) {
       toast({
         title: "Error",
@@ -218,6 +279,102 @@ export function POSModule() {
         variant: "destructive",
       })
     }
+  }
+
+  // Print invoice handler
+  const handlePrint = () => {
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank', 'width=800,height=600')
+    if (!printWindow) return
+
+    // Format invoice HTML
+    const invoiceHtml = `
+      <html>
+        <head>
+          <title>Invoice</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; }
+            h2 { margin-bottom: 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+            th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+            th { background: #f5f5f5; }
+            .totals { margin-top: 24px; }
+            .totals td { border: none; }
+          </style>
+        </head>
+        <body>
+          <h2>Invoice</h2>
+          <p><strong>Invoice #:</strong> INV-${Date.now()}<br/>
+          <strong>Date:</strong> ${new Date().toLocaleDateString()}<br/>
+          <strong>Time:</strong> ${new Date().toLocaleTimeString()}<br/>
+          <strong>Customer:</strong> ${customerName || 'Walk-in Customer'}<br/>
+          <strong>Phone:</strong> ${customerPhone || '-'}<br/>
+          <strong>Staff:</strong> ${employees.find((emp) => emp.id === staffMember)?.name || ''}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Code</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Discount</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${cart.map(item => `
+                <tr>
+                  <td>${item.name}</td>
+                  <td>${item.code}</td>
+                  <td>${item.quantity}</td>
+                  <td>₹${item.price}</td>
+                  <td>₹${item.discount}</td>
+                  <td>₹${item.finalPrice}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <table class="totals">
+            <tr><td><strong>Subtotal:</strong></td><td>₹${subtotal.toLocaleString()}</td></tr>
+            <tr><td><strong>Total Discount:</strong></td><td>-₹${totalDiscount.toLocaleString()}</td></tr>
+            <tr><td><strong>Total:</strong></td><td>₹${total.toLocaleString()}</td></tr>
+          </table>
+        </body>
+      </html>
+    `
+    printWindow.document.write(invoiceHtml)
+    printWindow.document.close()
+    printWindow.focus()
+    printWindow.print()
+  }
+
+  // WhatsApp invoice handler
+  const handleWhatsAppInvoice = () => {
+    if (!customerPhone) {
+      toast({
+        title: "Missing Phone Number",
+        description: "Please enter the customer's phone number to send the invoice via WhatsApp.",
+        variant: "destructive",
+      })
+      return
+    }
+    // Format WhatsApp message
+    const message =
+      `*Invoice*\n` +
+      `Invoice #: INV-${Date.now()}\n` +
+      `Date: ${new Date().toLocaleDateString()}\n` +
+      `Time: ${new Date().toLocaleTimeString()}\n` +
+      `Customer: ${customerName || 'Walk-in Customer'}\n` +
+      `Staff: ${employees.find((emp) => emp.id === staffMember)?.name || ''}\n` +
+      `\n*Items:*\n` +
+      cart.map(item => `${item.name} (${item.code}) x${item.quantity} - ₹${item.finalPrice}`).join("\n") +
+      `\n\nSubtotal: ₹${subtotal.toLocaleString()}\n` +
+      `Discount: -₹${totalDiscount.toLocaleString()}\n` +
+      `Total: ₹${total.toLocaleString()}`
+    // WhatsApp API URL (international format, no + or leading 0)
+    const phone = customerPhone.replace(/[^0-9]/g, "")
+    const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+    window.open(whatsappUrl, '_blank')
   }
 
   if (loading) {
@@ -259,17 +416,29 @@ export function POSModule() {
                 {filteredProducts.map((product) => (
                   <div
                     key={product.id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
-                    onClick={() => addToCart(product)}
+                    className={`flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer ${
+                      product.stock <= 0 ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    onClick={() => product.stock > 0 && addToCart(product)}
                   >
                     <div>
                       <p className="font-medium">{product.name}</p>
                       <p className="text-sm text-muted-foreground">Code: {product.code}</p>
-                      <p className="text-sm text-muted-foreground">Stock: {product.stock}</p>
+                      <p className={`text-sm ${product.stock <= 0 ? 'text-red-500 font-medium' : 'text-muted-foreground'}`}>
+                        Stock: {product.stock}
+                        {product.stock <= 0 && (
+                          <span className="ml-2 text-red-500 font-medium">Out of Stock</span>
+                        )}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="font-bold">₹{product.currentPrice}</p>
-                      <Button size="sm" variant="outline">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        disabled={product.stock <= 0}
+                        className={product.stock <= 0 ? 'opacity-50 cursor-not-allowed' : ''}
+                      >
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
@@ -309,6 +478,9 @@ export function POSModule() {
             <CardTitle className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5" />
               Shopping Cart
+              {hasStockIssues && (
+                <AlertTriangle className="h-4 w-4 text-red-500" />
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -316,50 +488,66 @@ export function POSModule() {
               <p className="text-center text-muted-foreground py-8">Cart is empty</p>
             ) : (
               <div className="space-y-3 max-h-64 overflow-y-auto">
-                {cart.map((item) => (
-                  <div key={item.id} className="space-y-2 p-3 border rounded-lg">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{item.code}</p>
+                {cart.map((item) => {
+                  const product = products.find((p) => p.id === item.id)
+                  const exceedsStock = product ? item.quantity > product.stock : false
+                  
+                  return (
+                    <div key={item.id} className={`space-y-2 p-3 border rounded-lg ${exceedsStock ? 'border-red-200 bg-red-50' : ''}`}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">{item.code}</p>
+                          {exceedsStock && (
+                            <p className="text-xs text-red-500 font-medium flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              Exceeds stock ({product?.stock || 0} available)
+                            </p>
+                          )}
+                        </div>
+                        <Button size="sm" variant="ghost" onClick={() => removeFromCart(item.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button size="sm" variant="ghost" onClick={() => removeFromCart(item.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <span className="text-sm font-medium w-8 text-center">{item.quantity}</span>
-                      <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Price:</span>
-                        <span>₹{item.price}</span>
-                      </div>
                       <div className="flex items-center gap-2">
-                        <Label className="text-xs">Discount:</Label>
-                        <Input
-                          type="number"
-                          placeholder="0"
-                          value={item.discount}
-                          onChange={(e) => updateDiscount(item.id, Number(e.target.value))}
-                          className="h-6 text-xs"
-                        />
+                        <Button size="sm" variant="outline" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="text-sm font-medium w-8 text-center">{item.quantity}</span>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          disabled={product ? item.quantity >= product.stock : false}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <div className="flex justify-between text-sm font-medium">
-                        <span>Total:</span>
-                        <span>₹{item.finalPrice}</span>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Price:</span>
+                          <span>₹{item.price}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs">Discount:</Label>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            value={item.discount}
+                            onChange={(e) => updateDiscount(item.id, Number(e.target.value))}
+                            className="h-6 text-xs"
+                          />
+                        </div>
+                        <div className="flex justify-between text-sm font-medium">
+                          <span>Total:</span>
+                          <span>₹{item.finalPrice}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
@@ -454,18 +642,18 @@ export function POSModule() {
             <div className="grid grid-cols-2 gap-2">
               <Button
                 onClick={handleCheckout}
-                disabled={cart.length === 0 || !paymentMethod || !staffMember}
+                disabled={cart.length === 0 || !paymentMethod || !staffMember || hasStockIssues}
                 className="w-full"
               >
                 Complete Sale
               </Button>
-              <Button variant="outline" className="w-full bg-transparent">
+              <Button variant="outline" className="w-full bg-transparent" onClick={handlePrint}>
                 <Printer className="h-4 w-4 mr-2" />
                 Print
               </Button>
             </div>
 
-            <Button variant="outline" className="w-full bg-transparent">
+            <Button variant="outline" className="w-full bg-transparent" onClick={handleWhatsAppInvoice}>
               <MessageSquare className="h-4 w-4 mr-2" />
               Send WhatsApp Invoice
             </Button>

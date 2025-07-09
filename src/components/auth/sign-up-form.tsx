@@ -31,7 +31,7 @@ export function SignUpForm() {
       await signUp(email, password, name)
       router.push("/") // Redirect to dashboard after successful sign up
     } catch (error) {
-      // Error is handled in the auth context
+      console.error("Sign up error:", error)
     } finally {
       setIsLoading(false)
     }

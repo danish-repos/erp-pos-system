@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -33,59 +33,223 @@ import {
   BarChart3,
   PieChartIcon,
 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import {
+  SalesService,
+  ProductService,
+  EmployeeService,
+  InventoryService,
+  type SaleRecord,
+  type Product,
+  type Employee,
+  type InventoryItem,
+} from "@/lib/firebase-services"
+
+interface ReportData {
+  salesData: any[]
+  categoryData: any[]
+  employeePerformance: any[]
+  inventoryData: any[]
+  customerData: any[]
+  profitMarginData: any[]
+}
 
 export function ReportsModule() {
   const [dateRange, setDateRange] = useState("month")
   const [reportType, setReportType] = useState("sales")
+  const [loading, setLoading] = useState(true)
+  const [reportData, setReportData] = useState<ReportData>({
+    salesData: [],
+    categoryData: [],
+    employeePerformance: [],
+    inventoryData: [],
+    customerData: [],
+    profitMarginData: [],
+  })
+  const [keyMetrics, setKeyMetrics] = useState({
+    totalRevenue: 0,
+    profitMargin: 0,
+    totalOrders: 0,
+    activeCustomers: 0,
+  })
+  const { toast } = useToast()
 
-  // Sample data for charts
-  const salesData = [
-    { month: "Jan", sales: 125000, profit: 45000, orders: 156 },
-    { month: "Feb", sales: 142000, profit: 52000, orders: 178 },
-    { month: "Mar", sales: 138000, profit: 48000, orders: 165 },
-    { month: "Apr", sales: 165000, profit: 62000, orders: 198 },
-    { month: "May", sales: 158000, profit: 58000, orders: 187 },
-    { month: "Jun", sales: 175000, profit: 68000, orders: 210 },
-  ]
+  useEffect(() => {
+    loadReportData()
+  }, [dateRange])
 
-  const categoryData = [
-    { name: "Kurtas", value: 35, sales: 245000, color: "#8884d8" },
-    { name: "Dupatta", value: 25, sales: 175000, color: "#82ca9d" },
-    { name: "Shirts", value: 20, sales: 140000, color: "#ffc658" },
-    { name: "Pants", value: 15, sales: 105000, color: "#ff7300" },
-    { name: "Others", value: 5, sales: 35000, color: "#00ff00" },
-  ]
+  const loadReportData = async () => {
+    try {
+      setLoading(true)
 
-  const employeePerformance = [
-    { name: "Ahmed Ali", sales: 125000, target: 150000, commission: 3125 },
-    { name: "Fatima Khan", sales: 98000, target: 100000, commission: 1960 },
-    { name: "Hassan Sheikh", sales: 65000, target: 80000, commission: 975 },
-    { name: "Sara Ahmed", sales: 45000, target: 60000, commission: 450 },
-  ]
+      // Load data from Firebase
+      const [sales, products, employees, inventory] = await Promise.all([
+        SalesService.getAllSales(),
+        ProductService.getAllProducts(),
+        EmployeeService.getAllEmployees(),
+        InventoryService.getAllInventoryItems(),
+      ])
 
-  const inventoryData = [
-    { category: "Kurtas", inStock: 145, lowStock: 12, outOfStock: 3 },
-    { category: "Dupatta", inStock: 89, lowStock: 8, outOfStock: 2 },
-    { category: "Shirts", inStock: 67, lowStock: 15, outOfStock: 5 },
-    { category: "Pants", inStock: 123, lowStock: 6, outOfStock: 1 },
-  ]
+      // Process sales data for charts
+      const processedData = processSalesData(sales, products, employees, inventory)
+      setReportData(processedData)
 
-  const customerData = [
-    { type: "New Customers", count: 45, percentage: 35 },
-    { type: "Returning Customers", count: 78, percentage: 60 },
-    { type: "VIP Customers", count: 12, percentage: 5 },
-  ]
+      // Calculate key metrics
+      const metrics = calculateKeyMetrics(sales, products)
+      setKeyMetrics(metrics)
+    } catch (error) {
+      console.error("Error loading report data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load report data. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
-  const profitMarginData = [
-    { product: "Cotton Kurta", margin: 45, sales: 25000 },
-    { product: "Silk Dupatta", margin: 52, sales: 18000 },
-    { product: "Linen Shirt", margin: 38, sales: 22000 },
-    { product: "Cotton Pants", margin: 42, sales: 15000 },
-  ]
+  const processSalesData = (
+    sales: SaleRecord[],
+    products: Product[],
+    employees: Employee[],
+    inventory: InventoryItem[],
+  ): ReportData => {
+    // Process sales by month
+    const salesByMonth = sales.reduce(
+      (acc, sale) => {
+        const month = new Date(sale.date).toLocaleDateString("en-US", { month: "short" })
+        if (!acc[month]) {
+          acc[month] = { month, sales: 0, profit: 0 }
+        }
+        acc[month].sales += sale.total
+        acc[month].profit += sale.total * 0.3 // Assuming 30% profit margin
+        return acc
+      },
+      {} as Record<string, any>,
+    )
+
+    // Process sales by category
+    const categoryStats = sales.reduce(
+      (acc, sale) => {
+        sale.items.forEach((item) => {
+          const product = products.find((p) => p.name === item.name)
+          const category = product?.fabricType || "Others"
+          if (!acc[category]) {
+            acc[category] = { name: category, value: 0, sales: 0, color: getRandomColor() }
+          }
+          acc[category].value += item.quantity
+          acc[category].sales += item.finalPrice * item.quantity
+        })
+        return acc
+      },
+      {} as Record<string, any>,
+    )
+
+    // Calculate percentages for category data
+    const totalCategorySales = Object.values(categoryStats).reduce((sum: number, cat: any) => sum + cat.sales, 0)
+    Object.values(categoryStats).forEach((cat: any) => {
+      cat.value = totalCategorySales > 0 ? ((cat.sales / totalCategorySales) * 100).toFixed(1) : 0
+    })
+
+    // Process employee performance
+    const employeeStats = employees.map((emp) => ({
+      name: emp.name,
+      sales: emp.totalSales || 0,
+      target: emp.monthlyTarget || 50000,
+      commission: emp.totalCommission || 0,
+    }))
+
+    // Process inventory data
+    const inventoryStats = inventory.reduce(
+      (acc, item) => {
+        if (!acc[item.category]) {
+          acc[item.category] = { category: item.category, inStock: 0, lowStock: 0, outOfStock: 0 }
+        }
+        if (item.currentStock === 0) {
+          acc[item.category].outOfStock += 1
+        } else if (item.currentStock <= item.minStock) {
+          acc[item.category].lowStock += 1
+        } else {
+          acc[item.category].inStock += 1
+        }
+        return acc
+      },
+      {} as Record<string, any>,
+    )
+
+    // Process customer data
+    const customerStats = sales.reduce(
+      (acc, sale) => {
+        if (!acc[sale.customerType]) {
+          acc[sale.customerType] = { type: sale.customerType, count: 0, percentage: 0 }
+        }
+        acc[sale.customerType].count += 1
+        return acc
+      },
+      {} as Record<string, any>,
+    )
+
+    const totalCustomers = Object.values(customerStats).reduce((sum: number, cust: any) => sum + cust.count, 0)
+    Object.values(customerStats).forEach((cust: any) => {
+      cust.percentage = totalCustomers > 0 ? ((cust.count / totalCustomers) * 100).toFixed(1) : 0
+    })
+
+    // Process profit margin data
+    const profitMarginData = products.slice(0, 5).map((product) => ({
+      product: product.name,
+      sales: product.currentPrice * (product.stock || 1),
+      margin: (((product.currentPrice - product.purchaseCost) / product.currentPrice) * 100).toFixed(1),
+    }))
+
+    return {
+      salesData: Object.values(salesByMonth),
+      categoryData: Object.values(categoryStats),
+      employeePerformance: employeeStats,
+      inventoryData: Object.values(inventoryStats),
+      customerData: Object.values(customerStats),
+      profitMarginData,
+    }
+  }
+
+  const calculateKeyMetrics = (sales: SaleRecord[], products: Product[]) => {
+    const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0)
+    const totalCost = sales.reduce((sum, sale) => {
+      return (
+        sum +
+        sale.items.reduce((itemSum, item) => {
+          const product = products.find((p) => p.name === item.name)
+          return itemSum + (product?.purchaseCost || 0) * item.quantity
+        }, 0)
+      )
+    }, 0)
+
+    const profitMargin = totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue) * 100 : 0
+    const totalOrders = sales.length
+    const uniqueCustomers = new Set(sales.map((sale) => sale.customerPhone)).size
+
+    return {
+      totalRevenue,
+      profitMargin,
+      totalOrders,
+      activeCustomers: uniqueCustomers,
+    }
+  }
+
+  const getRandomColor = () => {
+    const colors = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#00ff00"]
+    return colors[Math.floor(Math.random() * colors.length)]
+  }
 
   const generateReport = () => {
-    // In a real app, this would generate and download the report
-    alert(`Generating ${reportType} report for ${dateRange}...`)
+    toast({
+      title: "Report Generated",
+      description: `Generating ${reportType} report for ${dateRange}...`,
+    })
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64">Loading reports data...</div>
   }
 
   return (
@@ -134,7 +298,7 @@ export function ReportsModule() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Rs1,003,000</div>
+            <div className="text-2xl font-bold">₹{keyMetrics.totalRevenue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-3 w-3 text-green-500" />
               +12.5% from last month
@@ -150,7 +314,7 @@ export function ReportsModule() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">38.2%</div>
+            <div className="text-2xl font-bold">{keyMetrics.profitMargin.toFixed(1)}%</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-3 w-3 text-green-500" />
               +2.1% from last month
@@ -166,7 +330,7 @@ export function ReportsModule() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,094</div>
+            <div className="text-2xl font-bold">{keyMetrics.totalOrders}</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-3 w-3 text-green-500" />
               +8.3% from last month
@@ -182,7 +346,7 @@ export function ReportsModule() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">135</div>
+            <div className="text-2xl font-bold">{keyMetrics.activeCustomers}</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-3 w-3 text-green-500" />
               +15.2% from last month
@@ -225,14 +389,14 @@ export function ReportsModule() {
                   className="h-[300px]"
                 >
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={salesData}>
+                    <LineChart data={reportData.salesData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis />
                       <ChartTooltip content={<ChartTooltipContent />} />
                       <Legend />
-                      <Line type="monotone" dataKey="sales" stroke="var(--color-sales)" name="Sales (Rs)" />
-                      <Line type="monotone" dataKey="profit" stroke="var(--color-profit)" name="Profit (Rs)" />
+                      <Line type="monotone" dataKey="sales" stroke="var(--color-sales)" name="Sales (₹)" />
+                      <Line type="monotone" dataKey="profit" stroke="var(--color-profit)" name="Profit (₹)" />
                     </LineChart>
                   </ResponsiveContainer>
                 </ChartContainer>
@@ -261,7 +425,7 @@ export function ReportsModule() {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={categoryData}
+                        data={reportData.categoryData}
                         cx="50%"
                         cy="50%"
                         outerRadius={80}
@@ -269,7 +433,7 @@ export function ReportsModule() {
                         dataKey="value"
                         label={({ name, value }) => `${name}: ${value}%`}
                       >
-                        {categoryData.map((entry, index) => (
+                        {reportData.categoryData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
@@ -288,16 +452,28 @@ export function ReportsModule() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {profitMarginData.map((product, index) => (
+                {reportData.profitMarginData.map((product, index) => (
                   <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
                       <p className="font-medium">{product.product}</p>
-                      <p className="text-sm text-muted-foreground">Sales: Rs{product.sales.toLocaleString()}</p>
+                      <p className="text-sm text-muted-foreground">Sales: ₹{product.sales.toLocaleString()}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-medium">{product.margin}% margin</p>
-                      <Badge variant={product.margin > 45 ? "default" : product.margin > 35 ? "secondary" : "outline"}>
-                        {product.margin > 45 ? "Excellent" : product.margin > 35 ? "Good" : "Average"}
+                      <Badge
+                        variant={
+                          Number.parseFloat(product.margin) > 45
+                            ? "default"
+                            : Number.parseFloat(product.margin) > 35
+                              ? "secondary"
+                              : "outline"
+                        }
+                      >
+                        {Number.parseFloat(product.margin) > 45
+                          ? "Excellent"
+                          : Number.parseFloat(product.margin) > 35
+                            ? "Good"
+                            : "Average"}
                       </Badge>
                     </div>
                   </div>
@@ -327,7 +503,7 @@ export function ReportsModule() {
                   className="h-[300px]"
                 >
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={inventoryData}>
+                    <BarChart data={reportData.inventoryData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="category" />
                       <YAxis />
@@ -356,7 +532,9 @@ export function ReportsModule() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium text-red-800">Critical Stock Level</p>
-                        <p className="text-sm text-red-600">5 items out of stock</p>
+                        <p className="text-sm text-red-600">
+                          {reportData.inventoryData.reduce((sum, cat) => sum + cat.outOfStock, 0)} items out of stock
+                        </p>
                       </div>
                       <Badge variant="destructive">Urgent</Badge>
                     </div>
@@ -365,7 +543,10 @@ export function ReportsModule() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium text-orange-800">Low Stock Warning</p>
-                        <p className="text-sm text-orange-600">41 items below minimum level</p>
+                        <p className="text-sm text-orange-600">
+                          {reportData.inventoryData.reduce((sum, cat) => sum + cat.lowStock, 0)} items below minimum
+                          level
+                        </p>
                       </div>
                       <Badge variant="secondary">Monitor</Badge>
                     </div>
@@ -374,7 +555,10 @@ export function ReportsModule() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium text-blue-800">Reorder Suggestions</p>
-                        <p className="text-sm text-blue-600">12 items recommended for reorder</p>
+                        <p className="text-sm text-blue-600">
+                          {Math.floor(reportData.inventoryData.reduce((sum, cat) => sum + cat.lowStock, 0) * 0.3)} items
+                          recommended for reorder
+                        </p>
                       </div>
                       <Badge variant="outline">Action</Badge>
                     </div>
@@ -391,10 +575,10 @@ export function ReportsModule() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-4">
-                {categoryData.map((category, index) => (
+                {reportData.categoryData.map((category, index) => (
                   <div key={index} className="p-4 border rounded-lg">
                     <h3 className="font-medium">{category.name}</h3>
-                    <p className="text-2xl font-bold">Rs{category.sales.toLocaleString()}</p>
+                    <p className="text-2xl font-bold">₹{category.sales.toLocaleString()}</p>
                     <p className="text-sm text-muted-foreground">{category.value}% of total inventory</p>
                   </div>
                 ))}
@@ -421,14 +605,14 @@ export function ReportsModule() {
                 className="h-[300px]"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={employeePerformance}>
+                  <BarChart data={reportData.employeePerformance}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Legend />
-                    <Bar dataKey="sales" fill="var(--color-sales)" name="Actual Sales (Rs)" />
-                    <Bar dataKey="target" fill="var(--color-target)" name="Target (Rs)" />
+                    <Bar dataKey="sales" fill="var(--color-sales)" name="Actual Sales (₹)" />
+                    <Bar dataKey="target" fill="var(--color-target)" name="Target (₹)" />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartContainer>
@@ -436,7 +620,7 @@ export function ReportsModule() {
           </Card>
 
           <div className="grid gap-4 md:grid-cols-2">
-            {employeePerformance.map((employee, index) => (
+            {reportData.employeePerformance.map((employee, index) => (
               <Card key={index}>
                 <CardHeader>
                   <CardTitle className="text-lg">{employee.name}</CardTitle>
@@ -445,16 +629,16 @@ export function ReportsModule() {
                   <div className="flex justify-between">
                     <span>Sales Achievement:</span>
                     <span className="font-medium">
-                      {Math.round((employee.sales / employee.target) * 100)}% of target
+                      {employee.target > 0 ? Math.round((employee.sales / employee.target) * 100) : 0}% of target
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Total Sales:</span>
-                    <span className="font-medium">Rs{employee.sales.toLocaleString()}</span>
+                    <span className="font-medium">₹{employee.sales.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Commission Earned:</span>
-                    <span className="font-medium">Rs{employee.commission.toLocaleString()}</span>
+                    <span className="font-medium">₹{employee.commission.toLocaleString()}</span>
                   </div>
                   <Badge
                     variant={
@@ -487,20 +671,24 @@ export function ReportsModule() {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>Gross Sales:</span>
-                    <span className="font-medium">Rs1,003,000</span>
+                    <span className="font-medium">₹{keyMetrics.totalRevenue.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Returns:</span>
-                    <span className="font-medium text-red-600">-Rs15,000</span>
+                    <span className="font-medium text-red-600">
+                      -₹{Math.round(keyMetrics.totalRevenue * 0.015).toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Discounts:</span>
-                    <span className="font-medium text-red-600">-Rs45,000</span>
+                    <span className="font-medium text-red-600">
+                      -₹{Math.round(keyMetrics.totalRevenue * 0.045).toLocaleString()}
+                    </span>
                   </div>
                   <hr />
                   <div className="flex justify-between font-bold">
                     <span>Net Sales:</span>
-                    <span>Rs943,000</span>
+                    <span>₹{Math.round(keyMetrics.totalRevenue * 0.94).toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
@@ -514,20 +702,20 @@ export function ReportsModule() {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>Cost of Goods:</span>
-                    <span className="font-medium">Rs583,000</span>
+                    <span className="font-medium">₹{Math.round(keyMetrics.totalRevenue * 0.58).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Staff Salaries:</span>
-                    <span className="font-medium">Rs133,000</span>
+                    <span className="font-medium">₹{Math.round(keyMetrics.totalRevenue * 0.13).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Operating Expenses:</span>
-                    <span className="font-medium">Rs67,000</span>
+                    <span className="font-medium">₹{Math.round(keyMetrics.totalRevenue * 0.067).toLocaleString()}</span>
                   </div>
                   <hr />
                   <div className="flex justify-between font-bold">
                     <span>Total Costs:</span>
-                    <span>Rs783,000</span>
+                    <span>₹{Math.round(keyMetrics.totalRevenue * 0.777).toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
@@ -541,20 +729,26 @@ export function ReportsModule() {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>Gross Profit:</span>
-                    <span className="font-medium text-green-600">Rs360,000</span>
+                    <span className="font-medium text-green-600">
+                      ₹{Math.round(keyMetrics.totalRevenue * 0.36).toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Operating Profit:</span>
-                    <span className="font-medium text-green-600">Rs160,000</span>
+                    <span className="font-medium text-green-600">
+                      ₹{Math.round(keyMetrics.totalRevenue * 0.16).toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Profit Margin:</span>
-                    <span className="font-medium">17.0%</span>
+                    <span className="font-medium">{keyMetrics.profitMargin.toFixed(1)}%</span>
                   </div>
                   <hr />
                   <div className="flex justify-between font-bold text-green-600">
                     <span>Net Profit:</span>
-                    <span>Rs160,000</span>
+                    <span>
+                      ₹{Math.round(keyMetrics.totalRevenue * (keyMetrics.profitMargin / 100)).toLocaleString()}
+                    </span>
                   </div>
                 </div>
               </CardContent>
@@ -590,8 +784,8 @@ export function ReportsModule() {
                     <YAxis />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Legend />
-                    <Line type="monotone" dataKey="inflow" stroke="var(--color-inflow)" name="Cash Inflow (Rs)" />
-                    <Line type="monotone" dataKey="outflow" stroke="var(--color-outflow)" name="Cash Outflow (Rs)" />
+                    <Line type="monotone" dataKey="inflow" stroke="var(--color-inflow)" name="Cash Inflow (₹)" />
+                    <Line type="monotone" dataKey="outflow" stroke="var(--color-outflow)" name="Cash Outflow (₹)" />
                   </LineChart>
                 </ResponsiveContainer>
               </ChartContainer>
@@ -611,10 +805,10 @@ export function ReportsModule() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {customerData.map((segment, index) => (
+                  {reportData.customerData.map((segment, index) => (
                     <div key={index} className="space-y-2">
                       <div className="flex justify-between">
-                        <span>{segment.type}</span>
+                        <span className="capitalize">{segment.type}</span>
                         <span className="font-medium">{segment.count} customers</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
@@ -647,7 +841,13 @@ export function ReportsModule() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium text-blue-800">Average Order Value</p>
-                        <p className="text-sm text-blue-600">Rs2,450 per transaction</p>
+                        <p className="text-sm text-blue-600">
+                          ₹
+                          {keyMetrics.totalOrders > 0
+                            ? Math.round(keyMetrics.totalRevenue / keyMetrics.totalOrders).toLocaleString()
+                            : 0}{" "}
+                          per transaction
+                        </p>
                       </div>
                       <Badge variant="secondary">+15% vs last month</Badge>
                     </div>
@@ -656,7 +856,7 @@ export function ReportsModule() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium text-purple-800">Customer Lifetime Value</p>
-                        <p className="text-sm text-purple-600">Rs18,500 average CLV</p>
+                        <p className="text-sm text-purple-600">₹18,500 average CLV</p>
                       </div>
                       <Badge variant="outline">Growing</Badge>
                     </div>
@@ -687,7 +887,7 @@ export function ReportsModule() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">Rs{customer.value.toLocaleString()}</p>
+                      <p className="font-medium">₹{customer.value.toLocaleString()}</p>
                       <Badge variant={customer.type === "VIP" ? "default" : "secondary"}>{customer.type}</Badge>
                     </div>
                   </div>

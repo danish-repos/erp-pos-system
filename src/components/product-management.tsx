@@ -8,21 +8,15 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Plus, Edit, Trash2, Search, Package, Upload, History, TrendingUp, TrendingDown } from "lucide-react"
 import { ProductService } from "@/lib/firebase-services"
 import { useToast } from "@/hooks/use-toast"
+import Papa from "papaparse"  
 
 interface Product {
   id: string
-  name: string
+  name: string      
   code: string
   fabricType: string
   size: string
@@ -44,7 +38,6 @@ export function ProductManagement() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const { toast } = useToast()
 
   const [newProduct, setNewProduct] = useState({
@@ -62,6 +55,11 @@ export function ProductManagement() {
     supplier: "",
     batchInfo: "",
   })
+
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editProduct, setEditProduct] = useState<Product | null>(null)
+  const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false)
+  const [historyProduct, setHistoryProduct] = useState<Product | null>(null)
 
   // Load products from Firebase
   useEffect(() => {
@@ -156,6 +154,93 @@ export function ProductManagement() {
     if (stock <= 5) return { status: "critical", color: "destructive" }
     if (stock <= 10) return { status: "low", color: "secondary" }
     return { status: "good", color: "default" }
+  }
+
+  // Import products from CSV
+  const handleImportProducts = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results: unknown) => {
+        try {
+          const importedProducts = (results as { data: unknown[] }).data.map((row: any) => ({
+            name: row.name,
+            code: row.code,
+            fabricType: row.fabricType,
+            size: row.size,
+            color: row.color,
+            purchaseCost: Number(row.purchaseCost),
+            minSalePrice: Number(row.minSalePrice),
+            maxSalePrice: Number(row.maxSalePrice),
+            currentPrice: Number(row.currentPrice),
+            stock: Number(row.stock),
+            minStock: Number(row.minStock),
+            supplier: row.supplier,
+            batchInfo: row.batchInfo,
+            status: "active" as "active" | "inactive" | "discontinued",
+            createdDate: new Date().toISOString().split("T")[0],
+          }))
+          for (const product of importedProducts) {
+            await ProductService.createProduct(product)
+          }
+          toast({
+            title: "Import Successful",
+            description: `${importedProducts.length} products imported successfully!`,
+          })
+        } catch (error) {
+          toast({
+            title: "Import Failed",
+            description: "There was an error importing products.",
+            variant: "destructive",
+          })
+        }
+      },
+      error: () => {
+        toast({
+          title: "Import Failed",
+          description: "Could not parse the file.",
+          variant: "destructive",
+        })
+      },
+    })
+    // Reset file input
+    e.target.value = ""
+  }
+
+  // Edit product handlers
+  const openEditDialog = (product: Product) => {
+    setEditProduct(product)
+    setIsEditDialogOpen(true)
+  }
+  const handleEditProduct = async () => {
+    if (!editProduct) return
+    try {
+      await ProductService.updateProduct(editProduct.id, editProduct)
+      setIsEditDialogOpen(false)
+      setEditProduct(null)
+      toast({
+        title: "Product Updated",
+        description: "Product details updated successfully.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update product.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // History dialog handlers
+  const openHistoryDialog = (product: Product) => {
+    setHistoryProduct(product)
+    setIsHistoryDialogOpen(true)
+  }
+  const closeHistoryDialog = () => {
+    setIsHistoryDialogOpen(false)
+    setHistoryProduct(null)
   }
 
   if (loading) {
@@ -374,9 +459,12 @@ export function ProductManagement() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button variant="outline">
-              <Upload className="h-4 w-4 mr-2" />
-              Import Products
+            <Button variant="outline" asChild>
+              <label className="flex items-center cursor-pointer">
+                <Upload className="h-4 w-4 mr-2" />
+                Import Products
+                <input type="file" accept=".csv" onChange={handleImportProducts} className="hidden" />
+              </label>
             </Button>
           </div>
         </CardContent>
@@ -451,7 +539,7 @@ export function ProductManagement() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={stockStatus.color as any}>{product.stock} units</Badge>
+                        <Badge variant={stockStatus.color as "destructive" | "default" | "secondary" | "outline" | null | undefined}>{product.stock} units</Badge>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
@@ -461,10 +549,10 @@ export function ProductManagement() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline">
+                          <Button size="sm" variant="outline" onClick={() => openEditDialog(product)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="outline">
+                          <Button size="sm" variant="outline" onClick={() => openHistoryDialog(product)}>
                             <History className="h-4 w-4" />
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => handleDeleteProduct(product.id)}>
@@ -530,6 +618,153 @@ export function ProductManagement() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Product Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+            <DialogDescription>Update product details and save changes</DialogDescription>
+          </DialogHeader>
+          {editProduct && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-name">Product Name</Label>
+                  <Input
+                    id="edit-name"
+                    value={editProduct.name}
+                    onChange={(e) => setEditProduct({ ...editProduct, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-code">Product Code</Label>
+                  <Input
+                    id="edit-code"
+                    value={editProduct.code}
+                    onChange={(e) => setEditProduct({ ...editProduct, code: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="edit-fabricType">Fabric Type</Label>
+                  <Input
+                    id="edit-fabricType"
+                    value={editProduct.fabricType}
+                    onChange={(e) => setEditProduct({ ...editProduct, fabricType: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-size">Size</Label>
+                  <Input
+                    id="edit-size"
+                    value={editProduct.size}
+                    onChange={(e) => setEditProduct({ ...editProduct, size: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-color">Color</Label>
+                  <Input
+                    id="edit-color"
+                    value={editProduct.color}
+                    onChange={(e) => setEditProduct({ ...editProduct, color: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-purchaseCost">Purchase Cost (₹)</Label>
+                  <Input
+                    id="edit-purchaseCost"
+                    type="number"
+                    value={editProduct.purchaseCost}
+                    onChange={(e) => setEditProduct({ ...editProduct, purchaseCost: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-stock">Stock Quantity</Label>
+                  <Input
+                    id="edit-stock"
+                    type="number"
+                    value={editProduct.stock}
+                    onChange={(e) => setEditProduct({ ...editProduct, stock: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="edit-minSalePrice">Min Sale Price (₹)</Label>
+                  <Input
+                    id="edit-minSalePrice"
+                    type="number"
+                    value={editProduct.minSalePrice}
+                    onChange={(e) => setEditProduct({ ...editProduct, minSalePrice: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-maxSalePrice">Max Sale Price (₹)</Label>
+                  <Input
+                    id="edit-maxSalePrice"
+                    type="number"
+                    value={editProduct.maxSalePrice}
+                    onChange={(e) => setEditProduct({ ...editProduct, maxSalePrice: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-currentPrice">Current Price (₹)</Label>
+                  <Input
+                    id="edit-currentPrice"
+                    type="number"
+                    value={editProduct.currentPrice}
+                    onChange={(e) => setEditProduct({ ...editProduct, currentPrice: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-supplier">Supplier</Label>
+                  <Input
+                    id="edit-supplier"
+                    value={editProduct.supplier}
+                    onChange={(e) => setEditProduct({ ...editProduct, supplier: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-batchInfo">Batch Info</Label>
+                  <Input
+                    id="edit-batchInfo"
+                    value={editProduct.batchInfo}
+                    onChange={(e) => setEditProduct({ ...editProduct, batchInfo: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleEditProduct}>Save Changes</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Product History Dialog (placeholder) */}
+      <Dialog open={isHistoryDialogOpen} onOpenChange={closeHistoryDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Product History</DialogTitle>
+            <DialogDescription>History for {historyProduct?.name} ({historyProduct?.code})</DialogDescription>
+          </DialogHeader>
+          <div className="py-4 text-muted-foreground">
+            <p>Product history feature coming soon.</p>
+          </div>
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={closeHistoryDialog}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

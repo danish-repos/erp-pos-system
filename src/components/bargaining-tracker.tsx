@@ -1,10 +1,6 @@
 "use client"
 
-import { Progress } from "@/components/ui/progress"
-
-import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -21,251 +17,177 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Plus, Search, CheckCircle, XCircle, Clock } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Plus, Search, TrendingDown, Users, CheckCircle, XCircle, Clock } from "lucide-react"
+import { BargainingService, type BargainRecord } from "@/lib/firebase-services"
 import { useToast } from "@/hooks/use-toast"
 
-interface BargainEntry {
-  id: string
-  productId: string
-  productName: string
-  customerName: string
-  customerPhone: string
-  originalPrice: number
-  requestedPrice: number
-  finalPrice: number
-  discountAmount: number
-  discountPercentage: number
-  status: "pending" | "approved" | "rejected" | "completed"
-  staffMember: string
-  date: string
-  time: string
-  notes: string
-  approvedBy?: string
-  approvalDate?: string
-  createdAt: string
-  updatedAt?: string
-}
-
-interface BargainStats {
+type StaffPerformance = {
+  name: string
   totalBargains: number
+  approvedBargains: number
+  totalDiscount: number
   averageDiscount: number
-  totalDiscountGiven: number
-  approvalRate: number
-  pendingApprovals: number
 }
 
 export function BargainingTracker() {
-  const [bargainEntries, setBargainEntries] = useState<BargainEntry[]>([])
-  const [stats, setStats] = useState<BargainStats>({
-    totalBargains: 0,
-    averageDiscount: 0,
-    totalDiscountGiven: 0,
-    approvalRate: 0,
-    pendingApprovals: 0,
-  })
+  const [bargainRecords, setBargainRecords] = useState<BargainRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [dateFilter, setDateFilter] = useState("today")
-  const [isAddBargainOpen, setIsAddBargainOpen] = useState(false)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  const [bargainForm, setBargainForm] = useState({
+  const [newBargain, setNewBargain] = useState({
     productName: "",
+    productCode: "",
+    originalPrice: "",
+    finalPrice: "",
     customerName: "",
     customerPhone: "",
-    originalPrice: "",
-    requestedPrice: "",
-    staffMember: "",
-    notes: "",
+    reason: "",
+    category: "",
+    invoiceNumber: "",
   })
 
-  useEffect(() => {
-    loadBargainData()
+  // Load bargain records from Firebase
+  const loadBargainData = useCallback(() => {
+    const unsubscribe = BargainingService.subscribeToBargainRecords((records: BargainRecord[] | null) => {
+      setBargainRecords(records || [])
+      setLoading(false)
+    })
+    return unsubscribe
   }, [])
 
-  const loadBargainData = async () => {
-    try {
-      setLoading(true)
-      // Mock data - in real app, this would come from Firebase
-      const mockBargains: BargainEntry[] = [
-        {
-          id: "1",
-          productId: "prod1",
-          productName: "Cotton Kurta Set",
-          customerName: "Ahmed Ali",
-          customerPhone: "+92-300-1234567",
-          originalPrice: 3500,
-          requestedPrice: 2800,
-          finalPrice: 3000,
-          discountAmount: 500,
-          discountPercentage: 14.3,
-          status: "completed",
-          staffMember: "Fatima Khan",
-          date: new Date().toISOString().split("T")[0],
-          time: "10:30 AM",
-          notes: "Regular customer, good negotiation",
-          approvedBy: "Manager",
-          approvalDate: new Date().toISOString().split("T")[0],
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: "2",
-          productId: "prod2",
-          productName: "Silk Dupatta",
-          customerName: "Sara Ahmed",
-          customerPhone: "+92-301-9876543",
-          originalPrice: 2500,
-          requestedPrice: 1800,
-          finalPrice: 2500,
-          discountAmount: 0,
-          discountPercentage: 0,
-          status: "rejected",
-          staffMember: "Ali Hassan",
-          date: new Date().toISOString().split("T")[0],
-          time: "11:15 AM",
-          notes: "Discount too high, rejected",
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: "3",
-          productId: "prod3",
-          productName: "Designer Shirt",
-          customerName: "Hassan Khan",
-          customerPhone: "+92-302-5555555",
-          originalPrice: 4500,
-          requestedPrice: 3500,
-          finalPrice: 0,
-          discountAmount: 0,
-          discountPercentage: 22.2,
-          status: "pending",
-          staffMember: "Zara Ali",
-          date: new Date().toISOString().split("T")[0],
-          time: "12:00 PM",
-          notes: "Waiting for manager approval",
-          createdAt: new Date().toISOString(),
-        },
-      ]
+  useEffect(() => {
+    const unsubscribe = loadBargainData()
+    return () => unsubscribe()
+  }, [loadBargainData])
 
-      setBargainEntries(mockBargains)
+  // Filter records based on search term and status
+  const filteredRecords = (bargainRecords || []).filter((record) => {
+    if (!record) return false
 
-      // Calculate stats
-      const totalBargains = mockBargains.length
-      const completedBargains = mockBargains.filter((b) => b.status === "completed")
-      const totalDiscountGiven = completedBargains.reduce((sum, b) => sum + b.discountAmount, 0)
-      const averageDiscount =
-        completedBargains.length > 0
-          ? completedBargains.reduce((sum, b) => sum + b.discountPercentage, 0) / completedBargains.length
-          : 0
-      const approvedBargains = mockBargains.filter((b) => b.status === "approved" || b.status === "completed").length
-      const approvalRate = totalBargains > 0 ? (approvedBargains / totalBargains) * 100 : 0
-      const pendingApprovals = mockBargains.filter((b) => b.status === "pending").length
+    const matchesSearch =
+      record.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.productCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.staffMember?.toLowerCase().includes(searchTerm.toLowerCase())
 
-      setStats({
-        totalBargains,
-        averageDiscount,
-        totalDiscountGiven,
-        approvalRate,
-        pendingApprovals,
-      })
-    } catch (error) {
-      console.error("Error loading bargain data:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load bargaining data. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
+    const matchesStatus = statusFilter === "all" || record.status === statusFilter
 
-  const handleAddBargain = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      const originalPrice = Number.parseFloat(bargainForm.originalPrice)
-      const requestedPrice = Number.parseFloat(bargainForm.requestedPrice)
-      const discountAmount = originalPrice - requestedPrice
-      const discountPercentage = (discountAmount / originalPrice) * 100
+    return matchesSearch && matchesStatus
+  })
 
-      const newBargain: BargainEntry = {
-        id: Date.now().toString(),
-        productId: `prod_${Date.now()}`,
-        productName: bargainForm.productName,
-        customerName: bargainForm.customerName,
-        customerPhone: bargainForm.customerPhone,
-        originalPrice,
-        requestedPrice,
-        finalPrice: 0,
-        discountAmount,
-        discountPercentage,
-        status: discountPercentage > 20 ? "pending" : "approved",
-        staffMember: bargainForm.staffMember,
-        date: new Date().toISOString().split("T")[0],
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        notes: bargainForm.notes,
-        createdAt: new Date().toISOString(),
+  // Calculate statistics
+  const totalBargains = (bargainRecords || []).length
+  const approvedBargains = (bargainRecords || []).filter((record) => record?.status === "approved").length
+  const rejectedBargains = (bargainRecords || []).filter((record) => record?.status === "rejected").length
+  const pendingBargains = (bargainRecords || []).filter((record) => record?.status === "pending").length
+
+  const totalDiscountGiven = (bargainRecords || [])
+    .filter((record) => record?.status === "approved")
+    .reduce((sum, record) => sum + (record?.discountAmount || 0), 0)
+
+  const averageDiscount = approvedBargains > 0 ? totalDiscountGiven / approvedBargains : 0
+
+  // Staff performance analysis
+  const staffPerformance: Record<string, StaffPerformance> = (bargainRecords || []).reduce(
+    (acc: Record<string, StaffPerformance>, record) => {
+      if (!record?.staffMember) return acc
+
+      if (!acc[record.staffMember]) {
+        acc[record.staffMember] = {
+          name: record.staffMember,
+          totalBargains: 0,
+          approvedBargains: 0,
+          totalDiscount: 0,
+          averageDiscount: 0,
+        }
       }
 
-      setBargainEntries((prev) => [newBargain, ...prev])
+      acc[record.staffMember].totalBargains += 1
+      if (record.status === "approved") {
+        acc[record.staffMember].approvedBargains += 1
+        acc[record.staffMember].totalDiscount += record.discountAmount || 0
+      }
 
-      toast({
-        title: "Success",
-        description: `Bargain entry added ${newBargain.status === "pending" ? "and sent for approval" : "successfully"}`,
-      })
+      acc[record.staffMember].averageDiscount =
+        acc[record.staffMember].approvedBargains > 0
+          ? acc[record.staffMember].totalDiscount / acc[record.staffMember].approvedBargains
+          : 0
 
-      setIsAddBargainOpen(false)
-      setBargainForm({
+      return acc
+    },
+    {},
+  )
+
+  const handleAddBargain = async () => {
+    try {
+      const originalPrice = Number(newBargain.originalPrice)
+      const finalPrice = Number(newBargain.finalPrice)
+      const discountAmount = originalPrice - finalPrice
+      const discountPercentage = (discountAmount / originalPrice) * 100
+      const profitMargin = finalPrice * 0.3 // Assuming 30% profit margin
+
+      const bargain: Omit<BargainRecord, "id"> = {
+        date: new Date().toISOString().split("T")[0],
+        time: new Date().toLocaleTimeString(),
+        productName: newBargain.productName,
+        productCode: newBargain.productCode,
+        originalPrice: originalPrice,
+        finalPrice: finalPrice,
+        discountAmount: discountAmount,
+        discountPercentage: discountPercentage,
+        customerName: newBargain.customerName,
+        customerPhone: newBargain.customerPhone,
+        staffMember: "Current User", // Replace with actual user
+        reason: newBargain.reason,
+        invoiceNumber: newBargain.invoiceNumber,
+        category: newBargain.category,
+        profitMargin: profitMargin,
+        status: "pending" as const,
+      }
+
+      await BargainingService.createBargainRecord(bargain)
+
+      setNewBargain({
         productName: "",
+        productCode: "",
+        originalPrice: "",
+        finalPrice: "",
         customerName: "",
         customerPhone: "",
-        originalPrice: "",
-        requestedPrice: "",
-        staffMember: "",
-        notes: "",
+        reason: "",
+        category: "",
+        invoiceNumber: "",
       })
+      setIsDialogOpen(false)
 
-      loadBargainData()
-    } catch (error) {
-      console.error("Error adding bargain:", error)
+      toast({
+        title: "Bargain Record Added",
+        description: "Bargain record has been successfully created",
+      })
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: "Failed to add bargain entry",
+        description: "Failed to add bargain record. Please try again.",
         variant: "destructive",
       })
     }
   }
 
-  const handleApproval = async (bargainId: string, approved: boolean) => {
+  const updateBargainStatus = async (bargainId: string, newStatus: "approved" | "rejected" | "pending") => {
     try {
-      setBargainEntries((prev) =>
-        prev.map((bargain) => {
-          if (bargain.id === bargainId) {
-            return {
-              ...bargain,
-              status: approved ? "approved" : "rejected",
-              approvedBy: "Manager",
-              approvalDate: new Date().toISOString().split("T")[0],
-              finalPrice: approved ? bargain.requestedPrice : bargain.originalPrice,
-              updatedAt: new Date().toISOString(),
-            }
-          }
-          return bargain
-        }),
-      )
-
+      await BargainingService.updateBargainRecord(bargainId, { status: newStatus })
       toast({
-        title: "Success",
-        description: `Bargain ${approved ? "approved" : "rejected"} successfully`,
+        title: "Status Updated",
+        description: `Bargain has been ${newStatus}`,
       })
-
-      loadBargainData()
-    } catch (error) {
-      console.error("Error updating bargain:", error)
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: "Failed to update bargain status",
+        description: "Failed to update status. Please try again.",
         variant: "destructive",
       })
     }
@@ -273,147 +195,186 @@ export function BargainingTracker() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "completed":
-        return "default"
       case "approved":
-        return "secondary"
-      case "pending":
-        return "outline"
+        return "default"
       case "rejected":
         return "destructive"
+      case "pending":
+        return "secondary"
       default:
         return "outline"
     }
   }
 
-  const filteredEntries = bargainEntries.filter((entry) => {
-    const matchesSearch =
-      entry.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.customerPhone.includes(searchTerm)
-    const matchesStatus = statusFilter === "all" || entry.status === statusFilter
-    return matchesSearch && matchesStatus
-  })
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "approved":
+        return <CheckCircle className="h-4 w-4" />
+      case "rejected":
+        return <XCircle className="h-4 w-4" />
+      case "pending":
+        return <Clock className="h-4 w-4" />
+      default:
+        return null
+    }
+  }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading bargain records&hellip;</p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Bargaining Tracker</h2>
-        <Dialog open={isAddBargainOpen} onOpenChange={setIsAddBargainOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
               Add Bargain
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add Bargain Entry</DialogTitle>
-              <DialogDescription>Record a new price negotiation</DialogDescription>
+              <DialogTitle>Add Bargain Record</DialogTitle>
+              <DialogDescription>Record a new bargaining transaction</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAddBargain} className="space-y-4">
-              <div>
-                <Label htmlFor="productName">Product Name</Label>
-                <Input
-                  id="productName"
-                  value={bargainForm.productName}
-                  onChange={(e) => setBargainForm({ ...bargainForm, productName: e.target.value })}
-                  required
-                />
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="productName">Product Name</Label>
+                  <Input
+                    id="productName"
+                    value={newBargain.productName}
+                    onChange={(e) => setNewBargain({ ...newBargain, productName: e.target.value })}
+                    placeholder="Product name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="productCode">Product Code</Label>
+                  <Input
+                    id="productCode"
+                    value={newBargain.productCode}
+                    onChange={(e) => setNewBargain({ ...newBargain, productCode: e.target.value })}
+                    placeholder="SKU-001"
+                  />
+                </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="originalPrice">Original Price (₹)</Label>
+                  <Input
+                    id="originalPrice"
+                    type="number"
+                    value={newBargain.originalPrice}
+                    onChange={(e) => setNewBargain({ ...newBargain, originalPrice: e.target.value })}
+                    placeholder="2500"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="finalPrice">Final Price (₹)</Label>
+                  <Input
+                    id="finalPrice"
+                    type="number"
+                    value={newBargain.finalPrice}
+                    onChange={(e) => setNewBargain({ ...newBargain, finalPrice: e.target.value })}
+                    placeholder="2200"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="customerName">Customer Name</Label>
                   <Input
                     id="customerName"
-                    value={bargainForm.customerName}
-                    onChange={(e) => setBargainForm({ ...bargainForm, customerName: e.target.value })}
-                    required
+                    value={newBargain.customerName}
+                    onChange={(e) => setNewBargain({ ...newBargain, customerName: e.target.value })}
+                    placeholder="Customer name"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="customerPhone">Phone</Label>
+                  <Label htmlFor="customerPhone">Customer Phone</Label>
                   <Input
                     id="customerPhone"
-                    value={bargainForm.customerPhone}
-                    onChange={(e) => setBargainForm({ ...bargainForm, customerPhone: e.target.value })}
-                    required
+                    value={newBargain.customerPhone}
+                    onChange={(e) => setNewBargain({ ...newBargain, customerPhone: e.target.value })}
+                    placeholder="Phone number"
                   />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="originalPrice">Original Price</Label>
-                  <Input
-                    id="originalPrice"
-                    type="number"
-                    value={bargainForm.originalPrice}
-                    onChange={(e) => setBargainForm({ ...bargainForm, originalPrice: e.target.value })}
-                    required
-                  />
+                  <Label htmlFor="category">Category</Label>
+                  <Select
+                    value={newBargain.category}
+                    onValueChange={(value) => setNewBargain({ ...newBargain, category: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="shirts">Shirts</SelectItem>
+                      <SelectItem value="pants">Pants</SelectItem>
+                      <SelectItem value="dresses">Dresses</SelectItem>
+                      <SelectItem value="accessories">Accessories</SelectItem>
+                      <SelectItem value="footwear">Footwear</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
-                  <Label htmlFor="requestedPrice">Requested Price</Label>
+                  <Label htmlFor="invoiceNumber">Invoice Number</Label>
                   <Input
-                    id="requestedPrice"
-                    type="number"
-                    value={bargainForm.requestedPrice}
-                    onChange={(e) => setBargainForm({ ...bargainForm, requestedPrice: e.target.value })}
-                    required
+                    id="invoiceNumber"
+                    value={newBargain.invoiceNumber}
+                    onChange={(e) => setNewBargain({ ...newBargain, invoiceNumber: e.target.value })}
+                    placeholder="INV-001"
                   />
                 </div>
               </div>
+
               <div>
-                <Label htmlFor="staffMember">Staff Member</Label>
-                <Input
-                  id="staffMember"
-                  value={bargainForm.staffMember}
-                  onChange={(e) => setBargainForm({ ...bargainForm, staffMember: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="notes">Notes</Label>
+                <Label htmlFor="reason">Reason for Bargain</Label>
                 <Textarea
-                  id="notes"
-                  value={bargainForm.notes}
-                  onChange={(e) => setBargainForm({ ...bargainForm, notes: e.target.value })}
+                  id="reason"
+                  value={newBargain.reason}
+                  onChange={(e) => setNewBargain({ ...newBargain, reason: e.target.value })}
+                  placeholder="Reason for giving discount"
                 />
               </div>
+
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setIsAddBargainOpen(false)}>
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit">Add Bargain</Button>
+                <Button onClick={handleAddBargain}>Add Bargain Record</Button>
               </div>
-            </form>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
+      {/* Statistics Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Total Bargains</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalBargains}</div>
-            <p className="text-xs text-muted-foreground">This month</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Average Discount</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.averageDiscount.toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">Per transaction</p>
+            <div className="text-2xl font-bold">{totalBargains}</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-green-600">{approvedBargains} approved</span> &bull;
+              <span className="text-red-600"> {rejectedBargains} rejected</span>
+            </p>
           </CardContent>
         </Card>
 
@@ -422,8 +383,18 @@ export function BargainingTracker() {
             <CardTitle className="text-sm font-medium">Total Discount Given</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">₹{stats.totalDiscountGiven.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Revenue impact</p>
+            <div className="text-2xl font-bold text-orange-600">₹{totalDiscountGiven.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Approved bargains only</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Average Discount</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹{averageDiscount.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Per approved bargain</p>
           </CardContent>
         </Card>
 
@@ -432,281 +403,209 @@ export function BargainingTracker() {
             <CardTitle className="text-sm font-medium">Approval Rate</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.approvalRate.toFixed(1)}%</div>
+            <div className="text-2xl font-bold">
+              {totalBargains > 0 ? ((approvedBargains / totalBargains) * 100).toFixed(1) : 0}%
+            </div>
             <p className="text-xs text-muted-foreground">Bargains approved</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{stats.pendingApprovals}</div>
-            <p className="text-xs text-muted-foreground">Awaiting decision</p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="all-bargains" className="space-y-4">
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            Search &amp; Filter
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <Input
+                placeholder="Search by product, customer, or staff member..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabs */}
+      <Tabs defaultValue="records" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="all-bargains">All Bargains</TabsTrigger>
-          <TabsTrigger value="pending-approval">Pending Approval</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="records">Bargain Records</TabsTrigger>
+          <TabsTrigger value="staff">Staff Performance</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="all-bargains" className="space-y-4">
+        <TabsContent value="records">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Search & Filter
+                <TrendingDown className="h-5 w-5 text-orange-500" />
+                Bargain Records
               </CardTitle>
+              <CardDescription>
+                Showing {filteredRecords.length} of {totalBargains} bargain records
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Search by product, customer, or phone..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={dateFilter} onValueChange={setDateFilter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="today">Today</SelectItem>
-                    <SelectItem value="week">This Week</SelectItem>
-                    <SelectItem value="month">This Month</SelectItem>
-                    <SelectItem value="all">All Time</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Bargaining History</CardTitle>
-              <CardDescription>Complete record of price negotiations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Original Price</TableHead>
-                    <TableHead>Requested</TableHead>
-                    <TableHead>Final Price</TableHead>
-                    <TableHead>Discount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Staff</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredEntries.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{entry.productName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {entry.date} • {entry.time}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{entry.customerName}</p>
-                          <p className="text-sm text-muted-foreground">{entry.customerPhone}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>₹{entry.originalPrice.toLocaleString()}</TableCell>
-                      <TableCell>₹{entry.requestedPrice.toLocaleString()}</TableCell>
-                      <TableCell>{entry.finalPrice > 0 ? `₹${entry.finalPrice.toLocaleString()}` : "-"}</TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium text-red-600">{entry.discountPercentage.toFixed(1)}%</p>
-                          <p className="text-sm text-muted-foreground">₹{entry.discountAmount.toLocaleString()}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusColor(entry.status) as any}>{entry.status.toUpperCase()}</Badge>
-                      </TableCell>
-                      <TableCell>{entry.staffMember}</TableCell>
-                      <TableCell>
-                        {entry.status === "pending" && (
-                          <div className="flex gap-1">
-                            <Button size="sm" onClick={() => handleApproval(entry.id, true)}>
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="destructive" onClick={() => handleApproval(entry.id, false)}>
-                              <XCircle className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        )}
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Original Price</TableHead>
+                      <TableHead>Final Price</TableHead>
+                      <TableHead>Discount</TableHead>
+                      <TableHead>Staff</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pending-approval" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Pending Approvals
-              </CardTitle>
-              <CardDescription>Bargains requiring manager approval</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {bargainEntries
-                  .filter((entry) => entry.status === "pending")
-                  .map((entry) => (
-                    <div key={entry.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{entry.productName}</p>
-                          <Badge variant="outline">{entry.discountPercentage.toFixed(1)}% discount</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Customer: {entry.customerName} • Staff: {entry.staffMember}
-                        </p>
-                        <p className="text-sm">
-                          ₹{entry.originalPrice.toLocaleString()} → ₹{entry.requestedPrice.toLocaleString()}
-                        </p>
-                        {entry.notes && <p className="text-sm text-muted-foreground italic">"{entry.notes}"</p>}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => handleApproval(entry.id, true)}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Approve
-                        </Button>
-                        <Button variant="destructive" onClick={() => handleApproval(entry.id, false)}>
-                          <XCircle className="h-4 w-4 mr-1" />
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                {bargainEntries.filter((entry) => entry.status === "pending").length === 0 && (
-                  <div className="text-center py-8">
-                    <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
-                    <p className="text-muted-foreground">No pending approvals</p>
-                  </div>
-                )}
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRecords.map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{record.productName}</p>
+                            <p className="text-sm text-muted-foreground">{record.productCode}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{record.customerName}</p>
+                            <p className="text-sm text-muted-foreground">{record.customerPhone}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>₹{record.originalPrice.toLocaleString()}</TableCell>
+                        <TableCell>₹{record.finalPrice.toLocaleString()}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium text-orange-600">₹{record.discountAmount.toLocaleString()}</p>
+                            <p className="text-sm text-muted-foreground">{record.discountPercentage.toFixed(1)}%</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>{record.staffMember}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p>{record.date}</p>
+                            <p className="text-sm text-muted-foreground">{record.time}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusColor(record.status) as "destructive" | "default" | "secondary" | "outline" | null | undefined} className="flex items-center gap-1">
+                            {getStatusIcon(record.status)}
+                            {record.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {record.status === "pending" && (
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateBargainStatus(record.id, "approved")}
+                              >
+                                <CheckCircle className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateBargainStatus(record.id, "rejected")}
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="analytics" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Staff Performance</CardTitle>
-                <CardDescription>Bargaining performance by staff member</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {Object.entries(
-                    bargainEntries.reduce(
-                      (acc, entry) => {
-                        if (!acc[entry.staffMember]) {
-                          acc[entry.staffMember] = {
-                            total: 0,
-                            approved: 0,
-                            totalDiscount: 0,
-                          }
-                        }
-                        acc[entry.staffMember].total += 1
-                        if (entry.status === "approved" || entry.status === "completed") {
-                          acc[entry.staffMember].approved += 1
-                          acc[entry.staffMember].totalDiscount += entry.discountAmount
-                        }
-                        return acc
-                      },
-                      {} as Record<string, any>,
-                    ),
-                  ).map(([staff, data]) => (
-                    <div key={staff} className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="font-medium">{staff}</span>
-                        <span className="text-sm text-muted-foreground">
-                          {data.approved}/{data.total} approved
-                        </span>
-                      </div>
-                      <div className="space-y-1">
-                        <Progress value={(data.approved / data.total) * 100} className="h-2" />
-                        <p className="text-xs text-muted-foreground">
-                          Total discount given: ₹{data.totalDiscount.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Discount Distribution</CardTitle>
-                <CardDescription>Breakdown of discount ranges</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { range: "0-10%", count: bargainEntries.filter((e) => e.discountPercentage <= 10).length },
-                    {
-                      range: "10-20%",
-                      count: bargainEntries.filter((e) => e.discountPercentage > 10 && e.discountPercentage <= 20)
-                        .length,
-                    },
-                    {
-                      range: "20-30%",
-                      count: bargainEntries.filter((e) => e.discountPercentage > 20 && e.discountPercentage <= 30)
-                        .length,
-                    },
-                    { range: "30%+", count: bargainEntries.filter((e) => e.discountPercentage > 30).length },
-                  ].map((item) => (
-                    <div key={item.range} className="space-y-2">
-                      <div className="flex justify-between">
-                        <span>{item.range}</span>
-                        <span className="font-medium">{item.count} bargains</span>
-                      </div>
-                      <Progress
-                        value={bargainEntries.length > 0 ? (item.count / bargainEntries.length) * 100 : 0}
-                        className="h-2"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        <TabsContent value="staff">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Staff Performance
+              </CardTitle>
+              <CardDescription>Bargaining performance by staff member</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Staff Member</TableHead>
+                      <TableHead>Total Bargains</TableHead>
+                      <TableHead>Approved</TableHead>
+                      <TableHead>Approval Rate</TableHead>
+                      <TableHead>Total Discount</TableHead>
+                      <TableHead>Average Discount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Object.values(staffPerformance).map((staff) => {
+                      const s = staff as StaffPerformance
+                      return (
+                        <TableRow key={s.name}>
+                          <TableCell>
+                            <p className="font-medium">{s.name}</p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{s.totalBargains}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="default">{s.approvedBargains}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-green-600 h-2 rounded-full"
+                                  style={{
+                                    width: `${s.totalBargains > 0 ? (s.approvedBargains / s.totalBargains) * 100 : 0}%`,
+                                  }}
+                                ></div>
+                              </div>
+                              <span className="text-sm">
+                                {s.totalBargains > 0
+                                  ? ((s.approvedBargains / s.totalBargains) * 100).toFixed(1)
+                                  : 0}
+                                %
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-orange-600">₹{s.totalDiscount.toLocaleString()}</TableCell>
+                          <TableCell>₹{s.averageDiscount.toLocaleString()}</TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

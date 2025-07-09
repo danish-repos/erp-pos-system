@@ -24,9 +24,9 @@ export function SignInForm() {
       await signIn(email, password)
       router.push("/") // Redirect to dashboard after successful sign in
     } catch (error) {
-      // Error is handled in the auth context
+      console.error("Sign in error:", error)
     } finally {
-      setIsLoading(false)
+      setIsLoading(false) 
     }
   }
 
