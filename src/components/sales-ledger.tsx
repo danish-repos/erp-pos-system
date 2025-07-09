@@ -192,7 +192,7 @@ export function SalesLedger() {
             <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{totalSales.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Rs{totalSales.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">{salesRecords.length} transactions</p>
           </CardContent>
         </Card>
@@ -202,7 +202,7 @@ export function SalesLedger() {
             <CardTitle className="text-sm font-medium">Total Discount</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">₹{totalDiscount.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-red-600">Rs{totalDiscount.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               {totalSales > 0 ? ((totalDiscount / (totalSales + totalDiscount)) * 100).toFixed(1) : 0}% of gross sales
             </p>
@@ -339,9 +339,9 @@ export function SalesLedger() {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">₹{typeof record.total === "number" ? record.total.toLocaleString() : 0}</p>
+                            <p className="font-medium">Rs{typeof record.total === "number" ? record.total.toLocaleString() : 0}</p>
                             {record.discount > 0 && (
-                              <p className="text-xs text-red-600">-₹{typeof record.discount === "number" ? record.discount.toLocaleString() : 0} discount</p>
+                              <p className="text-xs text-red-600">-Rs{typeof record.discount === "number" ? record.discount.toLocaleString() : 0} discount</p>
                             )}
                           </div>
                         </TableCell>
@@ -418,7 +418,7 @@ export function SalesLedger() {
                         <p className="text-sm">{record.customerName}</p>
                         <p className="text-sm text-muted-foreground">{record.deliveryAddress}</p>
                         <p className="text-xs text-muted-foreground">
-                          Expected: {record.deliveryDate} • ₹{typeof record.total === "number" ? record.total.toLocaleString() : 0}
+                          Expected: {record.deliveryDate} • Rs{typeof record.total === "number" ? record.total.toLocaleString() : 0}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -466,7 +466,7 @@ export function SalesLedger() {
                         <p className="text-sm">{record.customerName}</p>
                         <p className="text-sm text-muted-foreground">{record.customerPhone}</p>
                         <p className="text-xs text-muted-foreground">
-                          Sale Date: {record.date} • Amount: ₹{typeof record.total === "number" ? record.total.toLocaleString() : 0}
+                          Sale Date: {record.date} • Amount: Rs{typeof record.total === "number" ? record.total.toLocaleString() : 0}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -552,7 +552,7 @@ export function SalesLedger() {
                           <p className="text-sm text-muted-foreground">{d.customer.customerPhone}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-medium">₹{d.totalAmount.toLocaleString()}</p>
+                          <p className="font-medium">Rs{d.totalAmount.toLocaleString()}</p>
                           <p className="text-sm text-muted-foreground">{d.totalPurchases} purchases</p>
                         </div>
                       </div>
@@ -563,7 +563,7 @@ export function SalesLedger() {
                         </div>
                         <div>
                           <p className="text-muted-foreground">Average Order</p>
-                          <p>₹{d.totalPurchases > 0 ? Math.round(d.totalAmount / d.totalPurchases).toLocaleString() : 0}</p>
+                          <p>Rs{d.totalPurchases > 0 ? Math.round(d.totalAmount / d.totalPurchases).toLocaleString() : 0}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Customer Since</p>

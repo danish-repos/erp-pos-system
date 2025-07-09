@@ -361,7 +361,7 @@ export function ProductManagement() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="purchaseCost">Purchase Cost (₹)</Label>
+                  <Label htmlFor="purchaseCost">Purchase Cost (Rs)</Label>
                   <Input
                     id="purchaseCost"
                     type="number"
@@ -395,7 +395,7 @@ export function ProductManagement() {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <Label htmlFor="minSalePrice">Min Sale Price (₹)</Label>
+                  <Label htmlFor="minSalePrice">Min Sale Price (Rs)</Label>
                   <Input
                     id="minSalePrice"
                     type="number"
@@ -405,7 +405,7 @@ export function ProductManagement() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="maxSalePrice">Max Sale Price (₹)</Label>
+                  <Label htmlFor="maxSalePrice">Max Sale Price (Rs)</Label>
                   <Input
                     id="maxSalePrice"
                     type="number"
@@ -415,7 +415,7 @@ export function ProductManagement() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="currentPrice">Current Price (₹)</Label>
+                  <Label htmlFor="currentPrice">Current Price (Rs)</Label>
                   <Input
                     id="currentPrice"
                     type="number"
@@ -535,12 +535,12 @@ export function ProductManagement() {
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell>₹{product.purchaseCost.toLocaleString()}</TableCell>
+                      <TableCell>Rs{product.purchaseCost.toLocaleString()}</TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">₹{product.currentPrice.toLocaleString()}</p>
+                          <p className="font-medium">Rs{product.currentPrice.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">
-                            Range: ₹{product.minSalePrice} - ₹{product.maxSalePrice}
+                            Range: Rs{product.minSalePrice} - Rs{product.maxSalePrice}
                           </p>
                         </div>
                       </TableCell>
@@ -628,7 +628,7 @@ export function ProductManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ₹{products.reduce((sum, p) => sum + p.currentPrice * p.stock, 0).toLocaleString()}
+              Rs{products.reduce((sum, p) => sum + p.currentPrice * p.stock, 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">At current prices</p>
           </CardContent>
@@ -690,7 +690,7 @@ export function ProductManagement() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="edit-purchaseCost">Purchase Cost (₹)</Label>
+                  <Label htmlFor="edit-purchaseCost">Purchase Cost (Rs)</Label>
                   <Input
                     id="edit-purchaseCost"
                     type="number"
@@ -710,7 +710,7 @@ export function ProductManagement() {
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <Label htmlFor="edit-minSalePrice">Min Sale Price (₹)</Label>
+                  <Label htmlFor="edit-minSalePrice">Min Sale Price (Rs)</Label>
                   <Input
                     id="edit-minSalePrice"
                     type="number"
@@ -719,7 +719,7 @@ export function ProductManagement() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-maxSalePrice">Max Sale Price (₹)</Label>
+                  <Label htmlFor="edit-maxSalePrice">Max Sale Price (Rs)</Label>
                   <Input
                     id="edit-maxSalePrice"
                     type="number"
@@ -728,7 +728,7 @@ export function ProductManagement() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-currentPrice">Current Price (₹)</Label>
+                  <Label htmlFor="edit-currentPrice">Current Price (Rs)</Label>
                   <Input
                     id="edit-currentPrice"
                     type="number"

@@ -388,7 +388,7 @@ export function DisposalModule() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="originalPrice">Original Price (₹)</Label>
+                  <Label htmlFor="originalPrice">Original Price (Rs)</Label>
                   <Input
                     id="originalPrice"
                     type="number"
@@ -403,7 +403,7 @@ export function DisposalModule() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="disposalValue">Recovery Value (₹)</Label>
+                  <Label htmlFor="disposalValue">Recovery Value (Rs)</Label>
                   <Input
                     id="disposalValue"
                     type="number"
@@ -542,7 +542,7 @@ export function DisposalModule() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              ₹{totalLoss.toLocaleString()}
+              Rs{totalLoss.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">Financial impact</p>
           </CardContent>
@@ -554,7 +554,7 @@ export function DisposalModule() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              ₹{totalRecovered.toLocaleString()}
+              Rs{totalRecovered.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">Value recovered</p>
           </CardContent>
@@ -655,20 +655,20 @@ export function DisposalModule() {
                         </TableCell>
                         <TableCell>{record.quantity}</TableCell>
                         <TableCell>
-                          ₹
+                          Rs
                           {typeof record.originalPrice === "number" &&
                           typeof record.quantity === "number"
                             ? (record.originalPrice * record.quantity).toLocaleString()
                             : "0"}
                         </TableCell>
                         <TableCell className="text-green-600">
-                          ₹
+                          Rs
                           {typeof record.disposalValue === "number"
                             ? record.disposalValue.toLocaleString()
                             : "0"}
                         </TableCell>
                         <TableCell className="text-red-600">
-                          ₹
+                          Rs
                           {typeof record.lossAmount === "number"
                             ? record.lossAmount.toLocaleString()
                             : "0"}
@@ -725,7 +725,7 @@ export function DisposalModule() {
                         <div>
                           <p className="font-medium">{stats.count} items</p>
                           <p className="text-sm text-muted-foreground">
-                            Loss: ₹{stats.loss.toLocaleString()}
+                            Loss: Rs{stats.loss.toLocaleString()}
                           </p>
                         </div>
                       </div>
@@ -767,7 +767,7 @@ export function DisposalModule() {
                         <div>
                           <p className="font-medium">{stats.count} items</p>
                           <p className="text-sm text-muted-foreground">
-                            Recovered: ₹{stats.recovered.toLocaleString()}
+                            Recovered: Rs{stats.recovered.toLocaleString()}
                           </p>
                         </div>
                       </div>

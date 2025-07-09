@@ -335,7 +335,7 @@ export function ReportsModule() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{keyMetrics.totalRevenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Rs{keyMetrics.totalRevenue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-3 w-3 text-green-500" />
               +12.5% from last month
@@ -432,8 +432,8 @@ export function ReportsModule() {
                       <YAxis />
                       <ChartTooltip content={<ChartTooltipContent />} />
                       <Legend />
-                      <Line type="monotone" dataKey="sales" stroke="var(--color-sales)" name="Sales (₹)" />
-                      <Line type="monotone" dataKey="profit" stroke="var(--color-profit)" name="Profit (₹)" />
+                      <Line type="monotone" dataKey="sales" stroke="var(--color-sales)" name="Sales (Rs)" />
+                      <Line type="monotone" dataKey="profit" stroke="var(--color-profit)" name="Profit (Rs)" />
                     </LineChart>
                   </ResponsiveContainer>
                 </ChartContainer>
@@ -493,7 +493,7 @@ export function ReportsModule() {
                   <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
                       <p className="font-medium">{product.product}</p>
-                      <p className="text-sm text-muted-foreground">Sales: ₹{product.sales.toLocaleString()}</p>
+                      <p className="text-sm text-muted-foreground">Sales: Rs{product.sales.toLocaleString()}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-medium">{product.margin}% margin</p>
@@ -615,7 +615,7 @@ export function ReportsModule() {
                 {reportData.categoryData.map((category, index) => (
                   <div key={index} className="p-4 border rounded-lg">
                     <h3 className="font-medium">{category.name}</h3>
-                    <p className="text-2xl font-bold">₹{category.sales.toLocaleString()}</p>
+                    <p className="text-2xl font-bold">Rs{category.sales.toLocaleString()}</p>
                     <p className="text-sm text-muted-foreground">{category.value}% of total inventory</p>
                   </div>
                 ))}
@@ -648,8 +648,8 @@ export function ReportsModule() {
                     <YAxis />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Legend />
-                    <Bar dataKey="sales" fill="var(--color-sales)" name="Actual Sales (₹)" />
-                    <Bar dataKey="target" fill="var(--color-target)" name="Target (₹)" />
+                    <Bar dataKey="sales" fill="var(--color-sales)" name="Actual Sales (Rs)" />
+                    <Bar dataKey="target" fill="var(--color-target)" name="Target (Rs)" />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartContainer>
@@ -671,11 +671,11 @@ export function ReportsModule() {
                   </div>
                   <div className="flex justify-between">
                     <span>Total Sales:</span>
-                    <span className="font-medium">₹{employee.sales.toLocaleString()}</span>
+                    <span className="font-medium">Rs{employee.sales.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Commission Earned:</span>
-                    <span className="font-medium">₹{employee.commission.toLocaleString()}</span>
+                    <span className="font-medium">Rs{employee.commission.toLocaleString()}</span>
                   </div>
                   <Badge
                     variant={
@@ -708,24 +708,24 @@ export function ReportsModule() {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>Gross Sales:</span>
-                    <span className="font-medium">₹{keyMetrics.totalRevenue.toLocaleString()}</span>
+                    <span className="font-medium">Rs{keyMetrics.totalRevenue.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Returns:</span>
                     <span className="font-medium text-red-600">
-                      -₹{Math.round(keyMetrics.totalRevenue * 0.015).toLocaleString()}
+                      -Rs{Math.round(keyMetrics.totalRevenue * 0.015).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Discounts:</span>
                     <span className="font-medium text-red-600">
-                      -₹{Math.round(keyMetrics.totalRevenue * 0.045).toLocaleString()}
+                      -Rs{Math.round(keyMetrics.totalRevenue * 0.045).toLocaleString()}
                     </span>
                   </div>
                   <hr />
                   <div className="flex justify-between font-bold">
                     <span>Net Sales:</span>
-                    <span>₹{Math.round(keyMetrics.totalRevenue * 0.94).toLocaleString()}</span>
+                    <span>Rs{Math.round(keyMetrics.totalRevenue * 0.94).toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
@@ -739,20 +739,20 @@ export function ReportsModule() {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>Cost of Goods:</span>
-                    <span className="font-medium">₹{Math.round(keyMetrics.totalRevenue * 0.58).toLocaleString()}</span>
+                    <span className="font-medium">Rs{Math.round(keyMetrics.totalRevenue * 0.58).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Staff Salaries:</span>
-                    <span className="font-medium">₹{Math.round(keyMetrics.totalRevenue * 0.13).toLocaleString()}</span>
+                    <span className="font-medium">Rs{Math.round(keyMetrics.totalRevenue * 0.13).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Operating Expenses:</span>
-                    <span className="font-medium">₹{Math.round(keyMetrics.totalRevenue * 0.067).toLocaleString()}</span>
+                    <span className="font-medium">Rs{Math.round(keyMetrics.totalRevenue * 0.067).toLocaleString()}</span>
                   </div>
                   <hr />
                   <div className="flex justify-between font-bold">
                     <span>Total Costs:</span>
-                    <span>₹{Math.round(keyMetrics.totalRevenue * 0.777).toLocaleString()}</span>
+                    <span>Rs{Math.round(keyMetrics.totalRevenue * 0.777).toLocaleString()}</span>
                   </div>
                 </div>
               </CardContent>
@@ -767,13 +767,13 @@ export function ReportsModule() {
                   <div className="flex justify-between">
                     <span>Gross Profit:</span>
                     <span className="font-medium text-green-600">
-                      ₹{Math.round(keyMetrics.totalRevenue * 0.36).toLocaleString()}
+                      Rs{Math.round(keyMetrics.totalRevenue * 0.36).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Operating Profit:</span>
                     <span className="font-medium text-green-600">
-                      ₹{Math.round(keyMetrics.totalRevenue * 0.16).toLocaleString()}
+                      Rs{Math.round(keyMetrics.totalRevenue * 0.16).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -784,7 +784,7 @@ export function ReportsModule() {
                   <div className="flex justify-between font-bold text-green-600">
                     <span>Net Profit:</span>
                     <span>
-                      ₹{Math.round(keyMetrics.totalRevenue * (keyMetrics.profitMargin / 100)).toLocaleString()}
+                      Rs{Math.round(keyMetrics.totalRevenue * (keyMetrics.profitMargin / 100)).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -821,8 +821,8 @@ export function ReportsModule() {
                     <YAxis />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Legend />
-                    <Line type="monotone" dataKey="inflow" stroke="var(--color-inflow)" name="Cash Inflow (₹)" />
-                    <Line type="monotone" dataKey="outflow" stroke="var(--color-outflow)" name="Cash Outflow (₹)" />
+                    <Line type="monotone" dataKey="inflow" stroke="var(--color-inflow)" name="Cash Inflow (Rs)" />
+                    <Line type="monotone" dataKey="outflow" stroke="var(--color-outflow)" name="Cash Outflow (Rs)" />
                   </LineChart>
                 </ResponsiveContainer>
               </ChartContainer>
@@ -879,7 +879,7 @@ export function ReportsModule() {
                       <div>
                         <p className="font-medium text-blue-800">Average Order Value</p>
                         <p className="text-sm text-blue-600">
-                          ₹
+                          Rs
                           {keyMetrics.totalOrders > 0
                             ? Math.round(keyMetrics.totalRevenue / keyMetrics.totalOrders).toLocaleString()
                             : 0}{" "}
@@ -893,7 +893,7 @@ export function ReportsModule() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="font-medium text-purple-800">Customer Lifetime Value</p>
-                        <p className="text-sm text-purple-600">₹18,500 average CLV</p>
+                        <p className="text-sm text-purple-600">Rs18,500 average CLV</p>
                       </div>
                       <Badge variant="outline">Growing</Badge>
                     </div>
@@ -924,7 +924,7 @@ export function ReportsModule() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">₹{customer.value.toLocaleString()}</p>
+                      <p className="font-medium">Rs{customer.value.toLocaleString()}</p>
                       <Badge variant={customer.type === "VIP" ? "default" : "secondary"}>{customer.type}</Badge>
                     </div>
                   </div>

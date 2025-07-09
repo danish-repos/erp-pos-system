@@ -263,7 +263,7 @@ export function POSModule() {
 
       toast({
         title: "Sale Completed",
-        description: `Sale completed successfully! Total: ₹${total.toLocaleString()}`,
+        description: `Sale completed successfully! Total: Rs${total.toLocaleString()}`,
       })
 
       // Reset form
@@ -327,17 +327,17 @@ export function POSModule() {
                   <td>${item.name}</td>
                   <td>${item.code}</td>
                   <td>${item.quantity}</td>
-                  <td>₹${item.price}</td>
-                  <td>₹${item.discount}</td>
-                  <td>₹${item.finalPrice}</td>
+                  <td>Rs${item.price}</td>
+                  <td>Rs${item.discount}</td>
+                  <td>Rs${item.finalPrice}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
           <table class="totals">
-            <tr><td><strong>Subtotal:</strong></td><td>₹${subtotal.toLocaleString()}</td></tr>
-            <tr><td><strong>Total Discount:</strong></td><td>-₹${totalDiscount.toLocaleString()}</td></tr>
-            <tr><td><strong>Total:</strong></td><td>₹${total.toLocaleString()}</td></tr>
+            <tr><td><strong>Subtotal:</strong></td><td>Rs${subtotal.toLocaleString()}</td></tr>
+            <tr><td><strong>Total Discount:</strong></td><td>-Rs${totalDiscount.toLocaleString()}</td></tr>
+            <tr><td><strong>Total:</strong></td><td>Rs${total.toLocaleString()}</td></tr>
           </table>
         </body>
       </html>
@@ -367,10 +367,10 @@ export function POSModule() {
       `Customer: ${customerName || 'Walk-in Customer'}\n` +
       `Staff: ${employees.find((emp) => emp.id === staffMember)?.name || ''}\n` +
       `\n*Items:*\n` +
-      cart.map(item => `${item.name} (${item.code}) x${item.quantity} - ₹${item.finalPrice}`).join("\n") +
-      `\n\nSubtotal: ₹${subtotal.toLocaleString()}\n` +
-      `Discount: -₹${totalDiscount.toLocaleString()}\n` +
-      `Total: ₹${total.toLocaleString()}`
+      cart.map(item => `${item.name} (${item.code}) x${item.quantity} - Rs${item.finalPrice}`).join("\n") +
+      `\n\nSubtotal: Rs${subtotal.toLocaleString()}\n` +
+      `Discount: -Rs${totalDiscount.toLocaleString()}\n` +
+      `Total: Rs${total.toLocaleString()}`
     // WhatsApp API URL (international format, no + or leading 0)
     const phone = customerPhone.replace(/[^0-9]/g, "")
     const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
@@ -432,7 +432,7 @@ export function POSModule() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">₹{product.currentPrice}</p>
+                      <p className="font-bold">Rs{product.currentPrice}</p>
                       <Button 
                         size="sm" 
                         variant="outline" 
@@ -528,7 +528,7 @@ export function POSModule() {
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span>Price:</span>
-                          <span>₹{item.price}</span>
+                          <span>Rs{item.price}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Label className="text-xs">Discount:</Label>
@@ -542,7 +542,7 @@ export function POSModule() {
                         </div>
                         <div className="flex justify-between text-sm font-medium">
                           <span>Total:</span>
-                          <span>₹{item.finalPrice}</span>
+                          <span>Rs{item.finalPrice}</span>
                         </div>
                       </div>
                     </div>
@@ -556,15 +556,15 @@ export function POSModule() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
-                <span>₹{subtotal.toLocaleString()}</span>
+                <span>Rs{subtotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-red-600">
                 <span>Total Discount:</span>
-                <span>-₹{totalDiscount.toLocaleString()}</span>
+                <span>-Rs{totalDiscount.toLocaleString()}</span>
               </div>
               <div className="flex justify-between font-bold text-lg">
                 <span>Total:</span>
-                <span>₹{total.toLocaleString()}</span>
+                <span>Rs{total.toLocaleString()}</span>
               </div>
             </div>
           </CardContent>

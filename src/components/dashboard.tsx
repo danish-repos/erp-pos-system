@@ -178,7 +178,7 @@ export function Dashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{stats.todaySales.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Rs{stats.todaySales.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               <TrendingUp className="inline h-3 w-3 mr-1" />
               ...
@@ -192,7 +192,7 @@ export function Dashboard() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{stats.monthlyRevenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">Rs{stats.monthlyRevenue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               <TrendingUp className="inline h-3 w-3 mr-1" />
              ...
@@ -235,7 +235,7 @@ export function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis />
-                <Tooltip formatter={(value) => [`₹${value}`, "Sales"]} />
+                <Tooltip formatter={(value) => [`Rs${value}`, "Sales"]} />
                 <Line type="monotone" dataKey="sales" stroke="#8884d8" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
@@ -252,7 +252,7 @@ export function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
-                <Tooltip formatter={(value) => [`₹${value}`, "Revenue"]} />
+                <Tooltip formatter={(value) => [`Rs${value}`, "Revenue"]} />
                 <Bar dataKey="revenue" fill="#82ca9d" />
               </BarChart>
             </ResponsiveContainer>
@@ -323,7 +323,7 @@ export function Dashboard() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium">₹{sale.total.toLocaleString()}</p>
+                      <p className="font-medium">Rs{sale.total.toLocaleString()}</p>
                       <Badge variant={sale.paymentStatus === "paid" ? "default" : "secondary"}>
                         {sale.paymentStatus}
                       </Badge>

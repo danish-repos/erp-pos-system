@@ -478,7 +478,7 @@ export function InventoryManagement() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="purchasePrice">Purchase Price (₹)</Label>
+                    <Label htmlFor="purchasePrice">Purchase Price (Rs)</Label>
                     <Input
                       id="purchasePrice"
                       type="number"
@@ -488,7 +488,7 @@ export function InventoryManagement() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="salePrice">Sale Price (₹)</Label>
+                    <Label htmlFor="salePrice">Sale Price (Rs)</Label>
                     <Input
                       id="salePrice"
                       type="number"
@@ -615,8 +615,8 @@ export function InventoryManagement() {
                           <TableCell>{item.location}</TableCell>
                           <TableCell>
                             <div className="text-sm">
-                              <p>Buy: ₹{item.purchasePrice}</p>
-                              <p>Sell: ₹{item.salePrice}</p>
+                              <p>Buy: Rs{item.purchasePrice}</p>
+                              <p>Sell: Rs{item.salePrice}</p>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -793,7 +793,7 @@ export function InventoryManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ₹{inventoryItems.reduce((sum, item) => sum + item.currentStock * item.salePrice, 0).toLocaleString()}
+              Rs{inventoryItems.reduce((sum, item) => sum + item.currentStock * item.salePrice, 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">At sale prices</p>
           </CardContent>
