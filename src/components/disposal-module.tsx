@@ -1,14 +1,33 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Textarea } from "@/components/ui/textarea"
+import React, { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -16,18 +35,124 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Search, AlertTriangle, Package, DollarSign } from "lucide-react"
-import { DisposalService, type DisposalRecord } from "@/lib/firebase-services"
-import { useToast } from "@/hooks/use-toast"
+} from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  Plus,
+  Search,
+  AlertTriangle,
+  Package,
+  DollarSign,
+} from "lucide-react";
+import { DisposalService, type DisposalRecord } from "@/lib/firebase-services";
+import { useToast } from "@/hooks/use-toast";
+
+type ConditionType = "damaged" | "expired" | "defective" | "unsold" | "stolen";
+type DisposalMethodType =
+  | "discard"
+  | "donate"
+  | "sell-discount"
+  | "return-supplier"
+  | "recycle";
+
+const CONDITION_OPTIONS: { value: ConditionType; label: string }[] = [
+  { value: "damaged", label: "Damaged" },
+  { value: "expired", label: "Expired" },
+  { value: "defective", label: "Defective" },
+  { value: "unsold", label: "Unsold" },
+  { value: "stolen", label: "Stolen" },
+];
+
+const METHOD_OPTIONS: { value: DisposalMethodType; label: string }[] = [
+  { value: "discard", label: "Discard" },
+  { value: "donate", label: "Donate" },
+  { value: "sell-discount", label: "Sell at Discount" },
+  { value: "return-supplier", label: "Return to Supplier" },
+  { value: "recycle", label: "Recycle" },
+];
+
+const CATEGORY_OPTIONS = [
+  { value: "shirts", label: "Shirts" },
+  { value: "pants", label: "Pants" },
+  { value: "dresses", label: "Dresses" },
+  { value: "accessories", label: "Accessories" },
+  { value: "footwear", label: "Footwear" },
+  { value: "outerwear", label: "Outerwear" },
+];
+
+function toConditionType(value: string): ConditionType {
+  if (
+    value === "damaged" ||
+    value === "expired" ||
+    value === "defective" ||
+    value === "unsold" ||
+    value === "stolen"
+  ) {
+    return value;
+  }
+  return "damaged";
+}
+
+function toDisposalMethodType(value: string): DisposalMethodType {
+  if (
+    value === "discard" ||
+    value === "donate" ||
+    value === "sell-discount" ||
+    value === "return-supplier" ||
+    value === "recycle"
+  ) {
+    return value;
+  }
+  return "discard";
+}
+
+function getConditionColor(
+  condition: string
+): "destructive" | "default" | "secondary" | "outline" {
+  switch (condition) {
+    case "damaged":
+    case "stolen":
+      return "destructive";
+    case "expired":
+      return "secondary";
+    case "defective":
+      return "outline";
+    case "unsold":
+      return "default";
+    default:
+      return "outline";
+  }
+}
+
+function getMethodColor(
+  method: string
+): "destructive" | "default" | "secondary" | "outline" {
+  switch (method) {
+    case "discard":
+      return "destructive";
+    case "donate":
+    case "recycle":
+      return "default";
+    case "sell-discount":
+      return "secondary";
+    case "return-supplier":
+      return "outline";
+    default:
+      return "outline";
+  }
+}
 
 export function DisposalModule() {
-  const [disposalRecords, setDisposalRecords] = useState<DisposalRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const { toast } = useToast()
+  const [disposalRecords, setDisposalRecords] = useState<DisposalRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   const [newDisposal, setNewDisposal] = useState({
     itemName: "",
@@ -42,89 +167,104 @@ export function DisposalModule() {
     notes: "",
     batchNumber: "",
     supplierName: "",
-  })
+  });
 
-  // Load disposal records from Firebase
   useEffect(() => {
     const unsubscribe = DisposalService.subscribeToDisposalRecords((records) => {
-      setDisposalRecords(records || [])
-      setLoading(false)
-    })
+      setDisposalRecords(records || []);
+      setLoading(false);
+    });
 
-    return () => unsubscribe()
-  }, [])
-
-  // Filter records based on search term
-  const filteredRecords = (disposalRecords || []).filter(
-    (record) =>
-      record?.itemName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record?.itemCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record?.reason?.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
-
-  // Calculate statistics
-  const totalLoss = (disposalRecords || []).reduce((sum, record) => sum + (record?.lossAmount || 0), 0)
-  const totalRecovered = (disposalRecords || []).reduce((sum, record) => sum + (record?.disposalValue || 0), 0)
-  const totalItems = (disposalRecords || []).reduce((sum, record) => sum + (record?.quantity || 0), 0)
-  const totalOriginalValue = (disposalRecords || []).reduce(
-    (sum, record) => sum + (record?.originalPrice || 0) * (record?.quantity || 0),
-    0,
-  )
-
-  // Group by condition
-  const conditionStats = (disposalRecords || []).reduce(
-    (acc, record) => {
-      if (!record?.condition) return acc
-      if (!acc[record.condition]) {
-        acc[record.condition] = { count: 0, loss: 0 }
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe();
       }
-      acc[record.condition].count += record.quantity || 0
-      acc[record.condition].loss += record.lossAmount || 0
-      return acc
-    },
-    {} as Record<string, { count: number; loss: number }>,
-  )
+    };
+  }, []);
 
-  // Group by disposal method
-  const methodStats = (disposalRecords || []).reduce(
-    (acc, record) => {
-      if (!record?.disposalMethod) return acc
-      if (!acc[record.disposalMethod]) {
-        acc[record.disposalMethod] = { count: 0, recovered: 0 }
-      }
-      acc[record.disposalMethod].count += record.quantity || 0
-      acc[record.disposalMethod].recovered += record.disposalValue || 0
-      return acc
-    },
-    {} as Record<string, { count: number; recovered: number }>,
-  )
+  const filteredRecords = disposalRecords.filter((record) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (record.itemName && record.itemName.toLowerCase().includes(term)) ||
+      (record.itemCode && record.itemCode.toLowerCase().includes(term)) ||
+      (record.reason && record.reason.toLowerCase().includes(term))
+    );
+  });
+
+  const totalLoss = disposalRecords.reduce(
+    (sum, record) => sum + (typeof record.lossAmount === "number" ? record.lossAmount : 0),
+    0
+  );
+  const totalRecovered = disposalRecords.reduce(
+    (sum, record) => sum + (typeof record.disposalValue === "number" ? record.disposalValue : 0),
+    0
+  );
+  const totalItems = disposalRecords.reduce(
+    (sum, record) => sum + (typeof record.quantity === "number" ? record.quantity : 0),
+    0
+  );
+  const totalOriginalValue = disposalRecords.reduce(
+    (sum, record) =>
+      sum +
+      (typeof record.originalPrice === "number" && typeof record.quantity === "number"
+        ? record.originalPrice * record.quantity
+        : 0),
+    0
+  );
+
+  const conditionStats: Record<
+    string,
+    { count: number; loss: number }
+  > = disposalRecords.reduce((acc, record) => {
+    if (!record.condition) return acc;
+    if (!acc[record.condition]) {
+      acc[record.condition] = { count: 0, loss: 0 };
+    }
+    acc[record.condition].count += typeof record.quantity === "number" ? record.quantity : 0;
+    acc[record.condition].loss += typeof record.lossAmount === "number" ? record.lossAmount : 0;
+    return acc;
+  }, {} as Record<string, { count: number; loss: number }>);
+
+  const methodStats: Record<
+    string,
+    { count: number; recovered: number }
+  > = disposalRecords.reduce((acc, record) => {
+    if (!record.disposalMethod) return acc;
+    if (!acc[record.disposalMethod]) {
+      acc[record.disposalMethod] = { count: 0, recovered: 0 };
+    }
+    acc[record.disposalMethod].count += typeof record.quantity === "number" ? record.quantity : 0;
+    acc[record.disposalMethod].recovered +=
+      typeof record.disposalValue === "number" ? record.disposalValue : 0;
+    return acc;
+  }, {} as Record<string, { count: number; recovered: number }>);
 
   const handleAddDisposal = async () => {
     try {
-      const originalPrice = Number(newDisposal.originalPrice)
-      const disposalValue = Number(newDisposal.disposalValue)
-      const quantity = Number(newDisposal.quantity)
-      const lossAmount = originalPrice * quantity - disposalValue
+      const originalPrice = Number(newDisposal.originalPrice);
+      const disposalValue = Number(newDisposal.disposalValue);
+      const quantity = Number(newDisposal.quantity);
+      const lossAmount = originalPrice * quantity - disposalValue;
 
       const disposal: Omit<DisposalRecord, "id"> = {
         itemName: newDisposal.itemName,
         itemCode: newDisposal.itemCode,
         category: newDisposal.category,
-        originalPrice: originalPrice,
-        disposalValue: disposalValue,
-        lossAmount: lossAmount,
-        quantity: quantity,
+        originalPrice,
+        disposalValue,
+        lossAmount,
+        quantity,
         disposalDate: new Date().toISOString().split("T")[0],
         reason: newDisposal.reason,
-        condition: newDisposal.condition as string,
-        disposalMethod: newDisposal.disposalMethod as string,
+        condition: toConditionType(newDisposal.condition),
+        disposalMethod: toDisposalMethodType(newDisposal.disposalMethod),
         approvedBy: "Current User", // Replace with actual user
         notes: newDisposal.notes,
         batchNumber: newDisposal.batchNumber,
         supplierName: newDisposal.supplierName,
-      }
+      };
 
-      await DisposalService.createDisposalRecord(disposal)
+      await DisposalService.createDisposalRecord(disposal);
 
       setNewDisposal({
         itemName: "",
@@ -139,55 +279,22 @@ export function DisposalModule() {
         notes: "",
         batchNumber: "",
         supplierName: "",
-      })
-      setIsDialogOpen(false)
+      });
+      setIsDialogOpen(false);
 
       toast({
         title: "Disposal Record Added",
         description: "Disposal record has been successfully created",
-      })
-    } catch (error) {
+      });
+    } catch (err) {
+      console.error("Error adding disposal record:", err);
       toast({
         title: "Error",
         description: "Failed to add disposal record. Please try again.",
         variant: "destructive",
-      })
+      });
     }
-  }
-
-  const getConditionColor = (condition: string) => {
-    switch (condition) {
-      case "damaged":
-        return "destructive"
-      case "expired":
-        return "secondary"
-      case "defective":
-        return "outline"
-      case "unsold":
-        return "default"
-      case "stolen":
-        return "destructive"
-      default:
-        return "outline"
-    }
-  }
-
-  const getMethodColor = (method: string) => {
-    switch (method) {
-      case "discard":
-        return "destructive"
-      case "donate":
-        return "default"
-      case "sell-discount":
-        return "secondary"
-      case "return-supplier":
-        return "outline"
-      case "recycle":
-        return "default"
-      default:
-        return "outline"
-    }
-  }
+  };
 
   if (loading) {
     return (
@@ -197,7 +304,7 @@ export function DisposalModule() {
           <p className="mt-2 text-muted-foreground">Loading disposal records...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -214,7 +321,9 @@ export function DisposalModule() {
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Add Disposal Record</DialogTitle>
-              <DialogDescription>Record items that need to be disposed of</DialogDescription>
+              <DialogDescription>
+                Record items that need to be disposed of
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
@@ -223,7 +332,9 @@ export function DisposalModule() {
                   <Input
                     id="itemName"
                     value={newDisposal.itemName}
-                    onChange={(e) => setNewDisposal({ ...newDisposal, itemName: e.target.value })}
+                    onChange={(e) =>
+                      setNewDisposal({ ...newDisposal, itemName: e.target.value })
+                    }
                     placeholder="Item name"
                   />
                 </div>
@@ -232,7 +343,9 @@ export function DisposalModule() {
                   <Input
                     id="itemCode"
                     value={newDisposal.itemCode}
-                    onChange={(e) => setNewDisposal({ ...newDisposal, itemCode: e.target.value })}
+                    onChange={(e) =>
+                      setNewDisposal({ ...newDisposal, itemCode: e.target.value })
+                    }
                     placeholder="SKU-001"
                   />
                 </div>
@@ -243,18 +356,19 @@ export function DisposalModule() {
                   <Label htmlFor="category">Category</Label>
                   <Select
                     value={newDisposal.category}
-                    onValueChange={(value) => setNewDisposal({ ...newDisposal, category: value })}
+                    onValueChange={(value) =>
+                      setNewDisposal({ ...newDisposal, category: value })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="shirts">Shirts</SelectItem>
-                      <SelectItem value="pants">Pants</SelectItem>
-                      <SelectItem value="dresses">Dresses</SelectItem>
-                      <SelectItem value="accessories">Accessories</SelectItem>
-                      <SelectItem value="footwear">Footwear</SelectItem>
-                      <SelectItem value="outerwear">Outerwear</SelectItem>
+                      {CATEGORY_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -264,7 +378,9 @@ export function DisposalModule() {
                     id="quantity"
                     type="number"
                     value={newDisposal.quantity}
-                    onChange={(e) => setNewDisposal({ ...newDisposal, quantity: e.target.value })}
+                    onChange={(e) =>
+                      setNewDisposal({ ...newDisposal, quantity: e.target.value })
+                    }
                     placeholder="1"
                   />
                 </div>
@@ -277,7 +393,12 @@ export function DisposalModule() {
                     id="originalPrice"
                     type="number"
                     value={newDisposal.originalPrice}
-                    onChange={(e) => setNewDisposal({ ...newDisposal, originalPrice: e.target.value })}
+                    onChange={(e) =>
+                      setNewDisposal({
+                        ...newDisposal,
+                        originalPrice: e.target.value,
+                      })
+                    }
                     placeholder="1500"
                   />
                 </div>
@@ -287,7 +408,12 @@ export function DisposalModule() {
                     id="disposalValue"
                     type="number"
                     value={newDisposal.disposalValue}
-                    onChange={(e) => setNewDisposal({ ...newDisposal, disposalValue: e.target.value })}
+                    onChange={(e) =>
+                      setNewDisposal({
+                        ...newDisposal,
+                        disposalValue: e.target.value,
+                      })
+                    }
                     placeholder="200"
                   />
                 </div>
@@ -298,17 +424,19 @@ export function DisposalModule() {
                   <Label htmlFor="condition">Condition</Label>
                   <Select
                     value={newDisposal.condition}
-                    onValueChange={(value) => setNewDisposal({ ...newDisposal, condition: value })}
+                    onValueChange={(value) =>
+                      setNewDisposal({ ...newDisposal, condition: value })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select condition" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="damaged">Damaged</SelectItem>
-                      <SelectItem value="expired">Expired</SelectItem>
-                      <SelectItem value="defective">Defective</SelectItem>
-                      <SelectItem value="unsold">Unsold</SelectItem>
-                      <SelectItem value="stolen">Stolen</SelectItem>
+                      {CONDITION_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -316,17 +444,19 @@ export function DisposalModule() {
                   <Label htmlFor="disposalMethod">Disposal Method</Label>
                   <Select
                     value={newDisposal.disposalMethod}
-                    onValueChange={(value) => setNewDisposal({ ...newDisposal, disposalMethod: value })}
+                    onValueChange={(value) =>
+                      setNewDisposal({ ...newDisposal, disposalMethod: value })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select method" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="discard">Discard</SelectItem>
-                      <SelectItem value="donate">Donate</SelectItem>
-                      <SelectItem value="sell-discount">Sell at Discount</SelectItem>
-                      <SelectItem value="return-supplier">Return to Supplier</SelectItem>
-                      <SelectItem value="recycle">Recycle</SelectItem>
+                      {METHOD_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -338,7 +468,12 @@ export function DisposalModule() {
                   <Input
                     id="batchNumber"
                     value={newDisposal.batchNumber}
-                    onChange={(e) => setNewDisposal({ ...newDisposal, batchNumber: e.target.value })}
+                    onChange={(e) =>
+                      setNewDisposal({
+                        ...newDisposal,
+                        batchNumber: e.target.value,
+                      })
+                    }
                     placeholder="BATCH-001"
                   />
                 </div>
@@ -347,7 +482,12 @@ export function DisposalModule() {
                   <Input
                     id="supplierName"
                     value={newDisposal.supplierName}
-                    onChange={(e) => setNewDisposal({ ...newDisposal, supplierName: e.target.value })}
+                    onChange={(e) =>
+                      setNewDisposal({
+                        ...newDisposal,
+                        supplierName: e.target.value,
+                      })
+                    }
                     placeholder="Supplier name"
                   />
                 </div>
@@ -358,7 +498,9 @@ export function DisposalModule() {
                 <Input
                   id="reason"
                   value={newDisposal.reason}
-                  onChange={(e) => setNewDisposal({ ...newDisposal, reason: e.target.value })}
+                  onChange={(e) =>
+                    setNewDisposal({ ...newDisposal, reason: e.target.value })
+                  }
                   placeholder="Reason for disposal"
                 />
               </div>
@@ -368,16 +510,24 @@ export function DisposalModule() {
                 <Textarea
                   id="notes"
                   value={newDisposal.notes}
-                  onChange={(e) => setNewDisposal({ ...newDisposal, notes: e.target.value })}
+                  onChange={(e) =>
+                    setNewDisposal({ ...newDisposal, notes: e.target.value })
+                  }
                   placeholder="Additional notes about the disposal"
                 />
               </div>
 
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(false)}
+                  type="button"
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleAddDisposal}>Add Disposal Record</Button>
+                <Button onClick={handleAddDisposal} type="button">
+                  Add Disposal Record
+                </Button>
               </div>
             </div>
           </DialogContent>
@@ -391,7 +541,9 @@ export function DisposalModule() {
             <CardTitle className="text-sm font-medium">Total Loss</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">₹{totalLoss.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-red-600">
+              ₹{totalLoss.toLocaleString()}
+            </div>
             <p className="text-xs text-muted-foreground">Financial impact</p>
           </CardContent>
         </Card>
@@ -401,7 +553,9 @@ export function DisposalModule() {
             <CardTitle className="text-sm font-medium">Total Recovered</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">₹{totalRecovered.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-green-600">
+              ₹{totalRecovered.toLocaleString()}
+            </div>
             <p className="text-xs text-muted-foreground">Value recovered</p>
           </CardContent>
         </Card>
@@ -422,9 +576,14 @@ export function DisposalModule() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalOriginalValue > 0 ? ((totalRecovered / totalOriginalValue) * 100).toFixed(1) : 0}%
+              {totalOriginalValue > 0
+                ? ((totalRecovered / totalOriginalValue) * 100).toFixed(1)
+                : 0}
+              %
             </div>
-            <p className="text-xs text-muted-foreground">Value recovery percentage</p>
+            <p className="text-xs text-muted-foreground">
+              Value recovery percentage
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -486,22 +645,48 @@ export function DisposalModule() {
                         <TableCell>
                           <div>
                             <p className="font-medium">{record.itemName}</p>
-                            <p className="text-sm text-muted-foreground">{record.itemCode}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {record.itemCode}
+                            </p>
                           </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{record.category}</Badge>
                         </TableCell>
                         <TableCell>{record.quantity}</TableCell>
-                        <TableCell>₹{(record.originalPrice * record.quantity).toLocaleString()}</TableCell>
-                        <TableCell className="text-green-600">₹{record.disposalValue.toLocaleString()}</TableCell>
-                        <TableCell className="text-red-600">₹{record.lossAmount.toLocaleString()}</TableCell>
                         <TableCell>
-                          <Badge variant={getConditionColor(record.condition) as string}>{record.condition}</Badge>
+                          ₹
+                          {typeof record.originalPrice === "number" &&
+                          typeof record.quantity === "number"
+                            ? (record.originalPrice * record.quantity).toLocaleString()
+                            : "0"}
+                        </TableCell>
+                        <TableCell className="text-green-600">
+                          ₹
+                          {typeof record.disposalValue === "number"
+                            ? record.disposalValue.toLocaleString()
+                            : "0"}
+                        </TableCell>
+                        <TableCell className="text-red-600">
+                          ₹
+                          {typeof record.lossAmount === "number"
+                            ? record.lossAmount.toLocaleString()
+                            : "0"}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getMethodColor(record.disposalMethod) as string}>
-                            {record.disposalMethod.replace("-", " ")}
+                          <Badge
+                            variant={getConditionColor(record.condition)}
+                          >
+                            {record.condition}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={getMethodColor(record.disposalMethod)}
+                          >
+                            {typeof record.disposalMethod === "string"
+                              ? record.disposalMethod.replace("-", " ")
+                              : ""}
                           </Badge>
                         </TableCell>
                         <TableCell>{record.disposalDate}</TableCell>
@@ -522,22 +707,34 @@ export function DisposalModule() {
                   <Package className="h-5 w-5" />
                   Disposal by Condition
                 </CardTitle>
-                <CardDescription>Breakdown of items by condition</CardDescription>
+                <CardDescription>
+                  Breakdown of items by condition
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {Object.entries(conditionStats).map(([condition, stats]) => (
-                    <div key={condition} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div
+                      key={condition}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
                       <div className="flex items-center gap-3">
-                        <Badge variant={getConditionColor(condition) as string}>{condition}</Badge>
+                        <Badge variant={getConditionColor(condition)}>
+                          {condition}
+                        </Badge>
                         <div>
                           <p className="font-medium">{stats.count} items</p>
-                          <p className="text-sm text-muted-foreground">Loss: ₹{stats.loss.toLocaleString()}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Loss: ₹{stats.loss.toLocaleString()}
+                          </p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-muted-foreground">
-                          {((stats.count / totalItems) * 100).toFixed(1)}%
+                          {totalItems > 0
+                            ? ((stats.count / totalItems) * 100).toFixed(1)
+                            : "0.0"}
+                          %
                         </p>
                       </div>
                     </div>
@@ -552,14 +749,21 @@ export function DisposalModule() {
                   <DollarSign className="h-5 w-5" />
                   Recovery by Method
                 </CardTitle>
-                <CardDescription>Value recovered by disposal method</CardDescription>
+                <CardDescription>
+                  Value recovered by disposal method
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {Object.entries(methodStats).map(([method, stats]) => (
-                    <div key={method} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div
+                      key={method}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
                       <div className="flex items-center gap-3">
-                        <Badge variant={getMethodColor(method) as string}>{method.replace("-", " ")}</Badge>
+                        <Badge variant={getMethodColor(method)}>
+                          {method.replace("-", " ")}
+                        </Badge>
                         <div>
                           <p className="font-medium">{stats.count} items</p>
                           <p className="text-sm text-muted-foreground">
@@ -569,7 +773,10 @@ export function DisposalModule() {
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-muted-foreground">
-                          {((stats.recovered / totalRecovered) * 100).toFixed(1)}%
+                          {totalRecovered > 0
+                            ? ((stats.recovered / totalRecovered) * 100).toFixed(1)
+                            : "0.0"}
+                          %
                         </p>
                       </div>
                     </div>
@@ -581,5 +788,5 @@ export function DisposalModule() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

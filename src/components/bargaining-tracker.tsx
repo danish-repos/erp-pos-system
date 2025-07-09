@@ -83,7 +83,6 @@ export function BargainingTracker() {
   const totalBargains = (bargainRecords || []).length
   const approvedBargains = (bargainRecords || []).filter((record) => record?.status === "approved").length
   const rejectedBargains = (bargainRecords || []).filter((record) => record?.status === "rejected").length
-  const pendingBargains = (bargainRecords || []).filter((record) => record?.status === "pending").length
 
   const totalDiscountGiven = (bargainRecords || [])
     .filter((record) => record?.status === "approved")
@@ -168,7 +167,7 @@ export function BargainingTracker() {
         title: "Bargain Record Added",
         description: "Bargain record has been successfully created",
       })
-    } catch (error: unknown) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to add bargain record. Please try again.",
@@ -184,7 +183,7 @@ export function BargainingTracker() {
         title: "Status Updated",
         description: `Bargain has been ${newStatus}`,
       })
-    } catch (error: unknown) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to update status. Please try again.",

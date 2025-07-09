@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts"
 import { TrendingUp, Users, Package, ShoppingCart, AlertTriangle, DollarSign, Clock } from "lucide-react"
-import { ProductService, EmployeeService, SalesService, InventoryService, LedgerService, type SaleRecord } from "@/lib/firebase-services"
+import { ProductService, EmployeeService, SalesService, LedgerService, type SaleRecord } from "@/lib/firebase-services"
 
 // Defining the types of the things used in the dashboard page. 
 interface StockAlert {
@@ -50,11 +50,10 @@ export function Dashboard() {
     const loadDashboardData = async () => {
       try {
 
-        const [products, employees, sales, inventory, credits, debits] = await Promise.all([
+        const [products, employees, sales, credits, debits] = await Promise.all([
           ProductService.getAllProducts(),
           EmployeeService.getAllEmployees(),
           SalesService.getAllSales(),
-          InventoryService.getAllInventoryItems(),
           LedgerService.getAllCreditEntries(),
           LedgerService.getAllDebitEntries(),
         ])
@@ -101,8 +100,8 @@ export function Dashboard() {
 
         // Top products by sales
         const productSales = sales.reduce(
-          (acc, sale) => {
-            sale.items.forEach((item) => {
+          (acc: Record<string, { name: string; quantity: number; revenue: number }>, sale) => {
+            sale.items.forEach((item: { name: string; quantity: number; finalPrice: number }) => {
               if (!acc[item.name]) {
                 acc[item.name] = { name: item.name, quantity: 0, revenue: 0 }
               }
@@ -111,12 +110,12 @@ export function Dashboard() {
             })
             return acc
           },
-          {} as Record<string, unknown>,
+          {} as Record<string, { name: string; quantity: number; revenue: number }>,
         )
 
        
         const topProductsData = Object.values(productSales)
-          .sort((a: any, b: any) => (b.revenue as number) - (a.revenue as number))
+          .sort((a, b) => b.revenue - a.revenue)
           .slice(0, 5)
 
         setTopProducts(topProductsData)
@@ -175,7 +174,7 @@ export function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Sales</CardTitle>
+            <CardTitle className="text-sm font-medium">Today&apos;s Sales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>

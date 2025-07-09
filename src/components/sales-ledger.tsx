@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,26 +27,12 @@ export function SalesLedger() {
   const [salesRecords, setSalesRecords] = useState<SaleRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [dateFilter, setDateFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [paymentFilter, setPaymentFilter] = useState("all")
-  const [selectedRecord, setSelectedRecord] = useState<SaleRecord | null>(null)
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  useEffect(() => {
-    loadSalesData()
-
-    // Set up real-time listener
-    const unsubscribe = SalesService.subscribeToSales((sales) => {
-      setSalesRecords(sales)
-      setLoading(false)
-    })
-
-    return () => unsubscribe()
-  }, [])
-
-  const loadSalesData = async () => {
+  // useCallback to avoid warning about loadSalesData in useEffect deps
+  const loadSalesData = useCallback(async () => {
     try {
       setLoading(true)
       const sales = await SalesService.getAllSales()
@@ -61,7 +47,23 @@ export function SalesLedger() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
+
+  useEffect(() => {
+    loadSalesData()
+
+    // Set up real-time listener
+    const unsubscribe = SalesService.subscribeToSales((sales: SaleRecord[]) => {
+      setSalesRecords(sales)
+      setLoading(false)
+    })
+
+    return () => {
+      if (typeof unsubscribe === "function") {
+        unsubscribe()
+      }
+    }
+  }, [loadSalesData])
 
   const updateDeliveryStatus = async (saleId: string, status: "pickup" | "delivered" | "pending" | "cancelled") => {
     try {
@@ -107,9 +109,9 @@ export function SalesLedger() {
 
   const filteredRecords = salesRecords.filter((record) => {
     const matchesSearch =
-      record.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.customerPhone.includes(searchTerm)
+      record.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.customerPhone?.includes(searchTerm)
 
     const matchesStatus = statusFilter === "all" || record.deliveryStatus === statusFilter
     const matchesPayment = paymentFilter === "all" || record.paymentStatus === paymentFilter
@@ -117,8 +119,8 @@ export function SalesLedger() {
     return matchesSearch && matchesStatus && matchesPayment
   })
 
-  const totalSales = salesRecords.reduce((sum, record) => sum + record.total, 0)
-  const totalDiscount = salesRecords.reduce((sum, record) => sum + record.discount, 0)
+  const totalSales = salesRecords.reduce((sum, record) => sum + (typeof record.total === "number" ? record.total : 0), 0)
+  const totalDiscount = salesRecords.reduce((sum, record) => sum + (typeof record.discount === "number" ? record.discount : 0), 0)
   const pendingDeliveries = salesRecords.filter((record) => record.deliveryStatus === "pending").length
   const pendingPayments = salesRecords.filter((record) => record.paymentStatus === "pending").length
 
@@ -320,30 +322,32 @@ export function SalesLedger() {
                           <div>
                             <p className="font-medium">{record.customerName}</p>
                             <p className="text-sm text-muted-foreground">{record.customerPhone}</p>
-                            <Badge variant={getCustomerTypeColor(record.customerType) as any} className="text-xs">
+                            <Badge variant={getCustomerTypeColor(record.customerType) as "destructive" | "default" | "secondary" | "outline" | undefined} className="text-xs">
                               {record.customerType}
                             </Badge>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="text-sm">{record.items.length} items</p>
+                            <p className="text-sm">{record.items?.length ?? 0} items</p>
                             <p className="text-xs text-muted-foreground">
-                              {record.items.reduce((sum, item) => sum + item.quantity, 0)} units
+                              {Array.isArray(record.items)
+                                ? record.items.reduce((sum, item) => sum + (typeof item.quantity === "number" ? item.quantity : 0), 0)
+                                : 0} units
                             </p>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">₹{record.total.toLocaleString()}</p>
+                            <p className="font-medium">₹{typeof record.total === "number" ? record.total.toLocaleString() : 0}</p>
                             {record.discount > 0 && (
-                              <p className="text-xs text-red-600">-₹{record.discount.toLocaleString()} discount</p>
+                              <p className="text-xs text-red-600">-₹{typeof record.discount === "number" ? record.discount.toLocaleString() : 0} discount</p>
                             )}
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
-                            <Badge variant={getPaymentStatusColor(record.paymentStatus) as any}>
+                            <Badge variant={getPaymentStatusColor(record.paymentStatus) as "destructive" | "default" | "secondary" | "outline" | undefined}>
                               {record.paymentStatus}
                             </Badge>
                             <p className="text-xs text-muted-foreground">{record.paymentMethod}</p>
@@ -351,7 +355,7 @@ export function SalesLedger() {
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
-                            <Badge variant={getDeliveryStatusColor(record.deliveryStatus) as any}>
+                            <Badge variant={getDeliveryStatusColor(record.deliveryStatus) as "destructive" | "default" | "secondary" | "outline" | undefined}>
                               {record.deliveryStatus}
                             </Badge>
                             {record.deliveryDate && (
@@ -368,8 +372,8 @@ export function SalesLedger() {
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                setSelectedRecord(record)
-                                setIsViewDialogOpen(true)
+                                // setSelectedRecord(record) // Removed as per edit hint
+                                // setIsViewDialogOpen(true) // Removed as per edit hint
                               }}
                             >
                               <Eye className="h-4 w-4" />
@@ -414,7 +418,7 @@ export function SalesLedger() {
                         <p className="text-sm">{record.customerName}</p>
                         <p className="text-sm text-muted-foreground">{record.deliveryAddress}</p>
                         <p className="text-xs text-muted-foreground">
-                          Expected: {record.deliveryDate} • ₹{record.total.toLocaleString()}
+                          Expected: {record.deliveryDate} • ₹{typeof record.total === "number" ? record.total.toLocaleString() : 0}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -462,7 +466,7 @@ export function SalesLedger() {
                         <p className="text-sm">{record.customerName}</p>
                         <p className="text-sm text-muted-foreground">{record.customerPhone}</p>
                         <p className="text-xs text-muted-foreground">
-                          Sale Date: {record.date} • Amount: ₹{record.total.toLocaleString()}
+                          Sale Date: {record.date} • Amount: ₹{typeof record.total === "number" ? record.total.toLocaleString() : 0}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -512,48 +516,63 @@ export function SalesLedger() {
                         }
                       }
                       acc[record.customerName].totalPurchases += 1
-                      acc[record.customerName].totalAmount += record.total
+                      acc[record.customerName].totalAmount += typeof record.total === "number" ? record.total : 0
                       acc[record.customerName].purchases.push(record)
                       if (record.date > acc[record.customerName].lastPurchase) {
                         acc[record.customerName].lastPurchase = record.date
                       }
                       return acc
                     },
-                    {} as Record<string, any>,
+                    {} as Record<string, {
+                      customer: SaleRecord
+                      totalPurchases: number
+                      totalAmount: number
+                      lastPurchase: string
+                      purchases: SaleRecord[]
+                    }>,
                   ),
-                ).map(([customerName, data]) => (
-                  <div key={customerName} className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{customerName}</p>
-                          <Badge variant={getCustomerTypeColor(data.customer.customerType) as any}>
-                            {data.customer.customerType}
-                          </Badge>
+                ).map(([customerName, data]) => {
+                  const d = data as {
+                    customer: SaleRecord
+                    totalPurchases: number
+                    totalAmount: number
+                    lastPurchase: string
+                    purchases: SaleRecord[]
+                  }
+                  return (
+                    <div key={customerName} className="p-4 border rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{customerName}</p>
+                            <Badge variant={getCustomerTypeColor(d.customer.customerType) as "destructive" | "default" | "secondary" | "outline" | undefined}>
+                              {d.customer.customerType}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{d.customer.customerPhone}</p>
                         </div>
-                        <p className="text-sm text-muted-foreground">{data.customer.customerPhone}</p>
+                        <div className="text-right">
+                          <p className="font-medium">₹{d.totalAmount.toLocaleString()}</p>
+                          <p className="text-sm text-muted-foreground">{d.totalPurchases} purchases</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium">₹{data.totalAmount.toLocaleString()}</p>
-                        <p className="text-sm text-muted-foreground">{data.totalPurchases} purchases</p>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Last Purchase</p>
+                          <p>{d.lastPurchase}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Average Order</p>
+                          <p>₹{d.totalPurchases > 0 ? Math.round(d.totalAmount / d.totalPurchases).toLocaleString() : 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Customer Since</p>
+                          <p>{d.purchases.length > 0 ? d.purchases[d.purchases.length - 1].date : ""}</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Last Purchase</p>
-                        <p>{data.lastPurchase}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Average Order</p>
-                        <p>₹{Math.round(data.totalAmount / data.totalPurchases).toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Customer Since</p>
-                        <p>{data.purchases[data.purchases.length - 1].date}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
                 {salesRecords.length === 0 && (
                   <div className="text-center py-8">
                     <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

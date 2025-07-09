@@ -67,26 +67,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           description: "Successfully signed in",
         })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       let errorMessage = "Failed to sign in"
-
-      switch (error.code) {
+      const err = error as { code?: string; message?: string }
+      switch (err.code) {
         case "auth/user-not-found":
           errorMessage = "No account found with this email"
           break
         case "auth/wrong-password":
           errorMessage = "Incorrect password"
           break
-        case "auth/invalid-email":
-          errorMessage = "Invalid email address"
-          break
         case "auth/too-many-requests":
           errorMessage = "Too many failed attempts. Please try again later"
           break
         default:
-          errorMessage = error.message
+          errorMessage = err.message || errorMessage
       }
-
       toast({
         title: "Sign In Failed",
         description: errorMessage,
@@ -128,10 +124,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         title: "Account Created!",
         description: `Welcome ${name || email}! Your account has been created successfully.`,
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       let errorMessage = "Failed to create account"
-
-      switch (error.code) {
+      const err = error as { code?: string; message?: string }
+      switch (err.code) {
         case "auth/email-already-in-use":
           errorMessage = "An account with this email already exists"
           break
@@ -139,12 +135,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           errorMessage = "Invalid email address"
           break
         case "auth/weak-password":
-          errorMessage = "Password should be at least 6 characters"
+          errorMessage = "Password is too weak"
           break
         default:
-          errorMessage = error.message
+          errorMessage = err.message || errorMessage
       }
-
       toast({
         title: "Sign Up Failed",
         description: errorMessage,
@@ -179,10 +174,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         title: "Signed Out",
         description: "You have been successfully signed out",
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string }
       toast({
         title: "Sign Out Failed",
-        description: error.message,
+        description: err.message || "Sign out failed",
         variant: "destructive",
       })
       throw error

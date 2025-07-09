@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -54,11 +54,10 @@ export function CreditDebitLedger() {
   const [selectedEntry, setSelectedEntry] = useState<CreditEntry | DebitEntry | null>(null)
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
 
-  // Load data on component mount
-  useEffect(() => {
-    loadData()
+  
 
-    // Set up real-time listeners
+  // Set up real-time listeners
+  useEffect(() => {
     const unsubscribeCredit = LedgerService.subscribeToCreditEntries((entries: CreditEntry[] | null) => {
       setCreditEntries(entries || [])
     })
@@ -73,7 +72,8 @@ export function CreditDebitLedger() {
     }
   }, [])
 
-  const loadData = async () => {
+  // Wrap loadData in useCallback to avoid recreating it on every render
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       const [creditData, debitData] = await Promise.all([
@@ -93,8 +93,13 @@ export function CreditDebitLedger() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
 
+  // Load data on component mount
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+  
   const handleCreateCreditEntry = async () => {
     try {
       if (!newCreditEntry.customerName || !newCreditEntry.amount) {

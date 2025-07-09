@@ -28,7 +28,6 @@ export function InventoryManagement() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isMovementDialogOpen, setIsMovementDialogOpen] = useState(false)
-  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
   const { toast } = useToast()
 
   const [newItem, setNewItem] = useState({
@@ -135,7 +134,7 @@ export function InventoryManagement() {
         title: "Item Added",
         description: "Inventory item has been successfully added",
       })
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to add item. Please try again.",
@@ -199,7 +198,7 @@ export function InventoryManagement() {
         title: "Stock Updated",
         description: "Stock movement has been recorded successfully",
       })
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to record stock movement. Please try again.",
@@ -215,7 +214,7 @@ export function InventoryManagement() {
         title: "Item Deleted",
         description: "Inventory item has been successfully deleted",
       })
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to delete item. Please try again.",
@@ -244,6 +243,20 @@ export function InventoryManagement() {
     if (item.currentStock <= item.minStock) return { level: "Low Stock", color: "text-orange-600" }
     if (item.currentStock >= item.maxStock) return { level: "Overstock", color: "text-blue-600" }
     return { level: "Normal", color: "text-green-600" }
+  }
+
+  // Helper function to map string to union type
+  function toMovementType(value: string): "in" | "out" | "adjustment" | "damaged" | "returned" {
+    if (
+      value === "in" ||
+      value === "out" ||
+      value === "adjustment" ||
+      value === "damaged" ||
+      value === "returned"
+    ) {
+      return value
+    }
+    return "in"
   }
 
   if (loading) {
@@ -299,7 +312,7 @@ export function InventoryManagement() {
                     <Label htmlFor="movementType">Movement Type</Label>
                     <Select
                       value={newMovement.type}
-                      onValueChange={(value: any) => setNewMovement({ ...newMovement, type: value })}
+                      onValueChange={(value: string) => setNewMovement({ ...newMovement, type: toMovementType(value) })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -607,7 +620,7 @@ export function InventoryManagement() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={getStatusColor(item.status) as any}>{item.status}</Badge>
+                            <Badge variant={getStatusColor(item.status) as "destructive" | "default" | "secondary" | "outline" | null | undefined}>{item.status}</Badge>
                           </TableCell>
                           <TableCell>
                             <p className="text-sm">{new Date(item.lastUpdated).toLocaleDateString()}</p>

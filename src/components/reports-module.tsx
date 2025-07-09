@@ -45,13 +45,47 @@ import {
   type InventoryItem,
 } from "@/lib/firebase-services"
 
+// Strongly type the report data for all chart/summary usages
+interface CategoryData {
+  name: string
+  value: number | string
+  sales: number
+  color: string
+}
+interface EmployeePerformance {
+  name: string
+  sales: number
+  target: number
+  commission: number
+}
+interface InventoryData {
+  category: string
+  inStock: number
+  lowStock: number
+  outOfStock: number
+}
+interface CustomerData {
+  type: string
+  count: number
+  percentage: number | string
+}
+interface ProfitMarginData {
+  product: string
+  sales: number
+  margin: number | string
+}
+interface SalesData {
+  month: string
+  sales: number
+  profit: number
+}
 interface ReportData {
-  salesData: any[]
-  categoryData: any[]
-  employeePerformance: any[]
-  inventoryData: any[]
-  customerData: any[]
-  profitMarginData: any[]
+  salesData: SalesData[]
+  categoryData: CategoryData[]
+  employeePerformance: EmployeePerformance[]
+  inventoryData: InventoryData[]
+  customerData: CustomerData[]
+  profitMarginData: ProfitMarginData[]
 }
 
 export function ReportsModule() {
@@ -73,10 +107,6 @@ export function ReportsModule() {
     activeCustomers: 0,
   })
   const { toast } = useToast()
-
-  useEffect(() => {
-    loadReportData()
-  }, [dateRange])
 
   const loadReportData = async () => {
     try {
@@ -109,6 +139,11 @@ export function ReportsModule() {
     }
   }
 
+  useEffect(() => {
+    loadReportData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const processSalesData = (
     sales: SaleRecord[],
     products: Product[],
@@ -126,7 +161,7 @@ export function ReportsModule() {
         acc[month].profit += sale.total * 0.3 // Assuming 30% profit margin
         return acc
       },
-      {} as Record<string, any>,
+      {} as Record<string, SalesData>,
     )
 
     // Process sales by category
@@ -138,22 +173,22 @@ export function ReportsModule() {
           if (!acc[category]) {
             acc[category] = { name: category, value: 0, sales: 0, color: getRandomColor() }
           }
-          acc[category].value += item.quantity
+          acc[category].value = (Number(acc[category].value) + Number(item.quantity)).toString()
           acc[category].sales += item.finalPrice * item.quantity
         })
         return acc
       },
-      {} as Record<string, any>,
+      {} as Record<string, CategoryData>,
     )
 
     // Calculate percentages for category data
-    const totalCategorySales = Object.values(categoryStats).reduce((sum: number, cat: any) => sum + cat.sales, 0)
-    Object.values(categoryStats).forEach((cat: any) => {
-      cat.value = totalCategorySales > 0 ? ((cat.sales / totalCategorySales) * 100).toFixed(1) : 0
+    const totalCategorySales = Object.values(categoryStats).reduce((sum: number, cat: CategoryData) => sum + cat.sales, 0)
+    Object.values(categoryStats).forEach((cat) => {
+      cat.value = totalCategorySales > 0 ? Number(((cat.sales / totalCategorySales) * 100).toFixed(1)) : 0
     })
 
     // Process employee performance
-    const employeeStats = employees.map((emp) => ({
+    const employeeStats: EmployeePerformance[] = employees.map((emp) => ({
       name: emp.name,
       sales: emp.totalSales || 0,
       target: emp.monthlyTarget || 50000,
@@ -175,7 +210,7 @@ export function ReportsModule() {
         }
         return acc
       },
-      {} as Record<string, any>,
+      {} as Record<string, InventoryData>,
     )
 
     // Process customer data
@@ -187,19 +222,21 @@ export function ReportsModule() {
         acc[sale.customerType].count += 1
         return acc
       },
-      {} as Record<string, any>,
+      {} as Record<string, CustomerData>,
     )
 
-    const totalCustomers = Object.values(customerStats).reduce((sum: number, cust: any) => sum + cust.count, 0)
-    Object.values(customerStats).forEach((cust: any) => {
-      cust.percentage = totalCustomers > 0 ? ((cust.count / totalCustomers) * 100).toFixed(1) : 0
+    const totalCustomers = Object.values(customerStats).reduce((sum: number, cust: CustomerData) => sum + cust.count, 0)
+    Object.values(customerStats).forEach((cust) => {
+      cust.percentage = totalCustomers > 0 ? Number(((cust.count / totalCustomers) * 100).toFixed(1)) : 0
     })
 
     // Process profit margin data
-    const profitMarginData = products.slice(0, 5).map((product) => ({
+    const profitMarginData: ProfitMarginData[] = products.slice(0, 5).map((product) => ({
       product: product.name,
       sales: product.currentPrice * (product.stock || 1),
-      margin: (((product.currentPrice - product.purchaseCost) / product.currentPrice) * 100).toFixed(1),
+      margin: product.currentPrice !== 0
+        ? Number((((product.currentPrice - product.purchaseCost) / product.currentPrice) * 100).toFixed(1))
+        : 0,
     }))
 
     return {
@@ -462,16 +499,16 @@ export function ReportsModule() {
                       <p className="font-medium">{product.margin}% margin</p>
                       <Badge
                         variant={
-                          Number.parseFloat(product.margin) > 45
+                          Number(product.margin) > 45
                             ? "default"
-                            : Number.parseFloat(product.margin) > 35
+                            : Number(product.margin) > 35
                               ? "secondary"
                               : "outline"
                         }
                       >
-                        {Number.parseFloat(product.margin) > 45
+                        {Number(product.margin) > 45
                           ? "Excellent"
-                          : Number.parseFloat(product.margin) > 35
+                          : Number(product.margin) > 35
                             ? "Good"
                             : "Average"}
                       </Badge>

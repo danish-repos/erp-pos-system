@@ -241,7 +241,7 @@ export interface SalaryRecord {
 // Generic Firebase CRUD operations
 export class FirebaseService {
   // Create
-  static async create(path: string, data: any): Promise<string | null> {
+  static async create(path: string, data: Record<string, unknown>): Promise<string | null> {
     try {
       const newRef = push(ref(database, path))
       await set(newRef, { ...data, id: newRef.key, createdAt: new Date().toISOString() })
@@ -279,7 +279,7 @@ export class FirebaseService {
   }
 
   // Update
-  static async update(path: string, id: string, data: any): Promise<void> {
+  static async update(path: string, id: string, data: Record<string, unknown>): Promise<void> {
     try {
       await update(ref(database, `${path}/${id}`), { ...data, updatedAt: new Date().toISOString() })
     } catch (error) {

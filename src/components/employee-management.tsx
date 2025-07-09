@@ -31,7 +31,6 @@ export function EmployeeManagement() {
 
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false)
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false)
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const { toast } = useToast()
 
   const [newEmployee, setNewEmployee] = useState({
@@ -171,7 +170,7 @@ export function EmployeeManagement() {
       // Reload employees
       const updatedEmployees = await EmployeeService.getAllEmployees()
       setEmployees(updatedEmployees)
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to add employee. Please try again.",
@@ -219,7 +218,7 @@ export function EmployeeManagement() {
       // Reload attendance records
       const updatedAttendance = await EmployeeService.getAllAttendanceRecords()
       setAttendanceRecords(updatedAttendance)
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to mark attendance. Please try again.",
@@ -239,7 +238,7 @@ export function EmployeeManagement() {
       // Reload employees
       const updatedEmployees = await EmployeeService.getAllEmployees()
       setEmployees(updatedEmployees)
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to delete employee. Please try again.",
@@ -649,7 +648,7 @@ export function EmployeeManagement() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getStatusColor(employee.status) as any}>{employee.status}</Badge>
+                          <Badge variant={getStatusColor(employee.status) as "destructive" | "default" | "secondary" | "outline" | null | undefined}>{employee.status}</Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
@@ -707,7 +706,7 @@ export function EmployeeManagement() {
                         <TableCell>{record.checkOut}</TableCell>
                         <TableCell>{record.hoursWorked.toFixed(1)} hrs</TableCell>
                         <TableCell>
-                          <Badge variant={getAttendanceColor(record.status) as any}>{record.status}</Badge>
+                          <Badge variant={getAttendanceColor(record.status) as "destructive" | "default" | "secondary" | "outline" | null | undefined}>{record.status}</Badge>
                         </TableCell>
                         <TableCell>{record.notes}</TableCell>
                       </TableRow>
@@ -860,3 +859,4 @@ export function EmployeeManagement() {
     </div>
   )
 }
+// (No code needed here.)

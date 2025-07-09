@@ -272,7 +272,7 @@ export function POSModule() {
       setCustomerPhone("")
       setPaymentMethod("")
       
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to complete sale. Please try again.",

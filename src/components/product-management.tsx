@@ -14,6 +14,22 @@ import { ProductService } from "@/lib/firebase-services"
 import { useToast } from "@/hooks/use-toast"
 import Papa from "papaparse"  
 
+type CSVProductRow = {
+  name: string
+  code: string
+  fabricType: string
+  size: string
+  color: string
+  purchaseCost: string
+  minSalePrice: string
+  maxSalePrice: string
+  currentPrice: string
+  stock: string
+  minStock: string
+  supplier: string
+  batchInfo: string
+}
+
 interface Product {
   id: string
   name: string      
@@ -121,7 +137,7 @@ export function ProductManagement() {
         title: "Product Added",
         description: "Product has been successfully added to inventory",
       })
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to add product. Please try again.",
@@ -137,7 +153,7 @@ export function ProductManagement() {
         title: "Product Deleted",
         description: "Product has been successfully deleted",
       })
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to delete product. Please try again.",
@@ -163,9 +179,9 @@ export function ProductManagement() {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: async (results: unknown) => {
+      complete: async (results: { data: CSVProductRow[] }) => {
         try {
-          const importedProducts = (results as { data: unknown[] }).data.map((row: any) => ({
+          const importedProducts = results.data.map((row: CSVProductRow) => ({
             name: row.name,
             code: row.code,
             fabricType: row.fabricType,
@@ -189,7 +205,7 @@ export function ProductManagement() {
             title: "Import Successful",
             description: `${importedProducts.length} products imported successfully!`,
           })
-        } catch (error) {
+        } catch {
           toast({
             title: "Import Failed",
             description: "There was an error importing products.",
@@ -224,7 +240,7 @@ export function ProductManagement() {
         title: "Product Updated",
         description: "Product details updated successfully.",
       })
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to update product.",
