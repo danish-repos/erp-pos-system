@@ -1,4 +1,4 @@
-import { ref, push, set, get, update, remove, onValue, off } from "firebase/database"
+import { ref, push, set, get, update as fbUpdate, remove, onValue, off } from "firebase/database"
 import { database } from "./firebase"
 
 // Type definitions
@@ -14,13 +14,22 @@ export interface Product {
   maxSalePrice: number
   currentPrice: number
   stock: number
-  minStock: number // Add this line
+  minStock: number
+  maxStock: number
   supplier: string
   batchInfo: string
   status: "active" | "inactive" | "discontinued"
   createdDate: string
   createdAt?: string
   updatedAt?: string
+}
+
+export interface ProductPriceHistoryEntry {
+  date: string
+  purchaseCost: number
+  minSalePrice: number
+  maxSalePrice: number
+  currentPrice: number
 }
 
 export interface Employee {
@@ -82,28 +91,6 @@ export interface SaleItem {
   originalPrice: number
   finalPrice: number
   discount: number
-}
-
-export interface InventoryItem {
-  id: string
-  name: string
-  code: string
-  category: string
-  currentStock: number
-  minStock: number
-  maxStock: number
-  reservedStock: number
-  availableStock: number
-  status: "available" | "reserved" | "damaged" | "out-of-stock"
-  location: string
-  lastUpdated: string
-  supplier: string
-  purchasePrice: number
-  salePrice: number
-  expiryDate?: string
-  batchNumber: string
-  createdAt?: string
-  updatedAt?: string
 }
 
 export interface StockMovement {
@@ -281,7 +268,7 @@ export class FirebaseService {
   // Update
   static async update(path: string, id: string, data: Record<string, unknown>): Promise<void> {
     try {
-      await update(ref(database, `${path}/${id}`), { ...data, updatedAt: new Date().toISOString() })
+      await fbUpdate(ref(database, `${path}/${id}`), { ...data, updatedAt: new Date().toISOString() })
     } catch (error) {
       console.error(`Error updating ${path}/${id}:`, error)
       throw error
@@ -334,6 +321,22 @@ export class ProductService extends FirebaseService {
   static subscribeToProducts(callback: (products: Product[]) => void): () => void {
     return this.subscribe<Product>("products", callback)
   }
+
+  static async getProductPriceHistory(id: string): Promise<ProductPriceHistoryEntry[]> {
+    return this.getAll<ProductPriceHistoryEntry>(`products/${id}/history`)
+  }
+
+  static async addPriceHistory(id: string, entry: ProductPriceHistoryEntry): Promise<string | null> {
+    return this.create(`products/${id}/history`, entry as unknown as Record<string, unknown>)
+  }
+
+  // Stock Movements for products
+  static async getAllStockMovements() {
+    return this.getAll<StockMovement>("stockMovements");
+  }
+  static async addStockMovement(movement: Omit<StockMovement, "id">) {
+    return this.create("stockMovements", movement);
+  }
 }
 
 // Employee Services
@@ -366,6 +369,10 @@ export class EmployeeService extends FirebaseService {
     return this.create("salaryRecords", record)
   }
 
+  static async updateSalaryRecord(id: string, record: Partial<SalaryRecord>): Promise<void> {
+    return this.update("salaryRecords", id, record)
+  }
+
   static async getAllSalaryRecords(): Promise<SalaryRecord[]> {
     return this.getAll<SalaryRecord>("salaryRecords")
   }
@@ -395,41 +402,6 @@ export class SalesService extends FirebaseService {
 
   static subscribeToSales(callback: (sales: SaleRecord[]) => void): () => void {
     return this.subscribe<SaleRecord>("sales", callback)
-  }
-}
-
-// Inventory Services
-export class InventoryService extends FirebaseService {
-  static async createInventoryItem(item: Omit<InventoryItem, "id">): Promise<string | null> {
-    return this.create("inventory", item)
-  }
-
-  static async getAllInventoryItems(): Promise<InventoryItem[]> {
-    return this.getAll<InventoryItem>("inventory")
-  }
-
-  static async updateInventoryItem(id: string, item: Partial<InventoryItem>): Promise<void> {
-    return this.update("inventory", id, item)
-  }
-
-  static async deleteInventoryItem(id: string): Promise<void> {
-    return this.delete("inventory", id)
-  }
-
-  static async createStockMovement(movement: Omit<StockMovement, "id">): Promise<string | null> {
-    return this.create("stockMovements", movement)
-  }
-
-  static async getAllStockMovements(): Promise<StockMovement[]> {
-    return this.getAll<StockMovement>("stockMovements")
-  }
-
-  static subscribeToInventory(callback: (items: InventoryItem[]) => void): () => void {
-    return this.subscribe<InventoryItem>("inventory", callback)
-  }
-
-  static subscribeToStockMovements(callback: (movements: StockMovement[]) => void): () => void {
-    return this.subscribe<StockMovement>("stockMovements", callback)
   }
 }
 

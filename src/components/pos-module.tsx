@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Plus, Minus, Trash2, User, CreditCard, Smartphone, Banknote, Printer, MessageSquare, ShoppingCart, AlertTriangle } from "lucide-react"
-import { ProductService, SalesService, EmployeeService, type Product, type Employee, type SaleItem } from "@/lib/firebase-services"
+import { ProductService, SalesService, EmployeeService, BargainingService, type Product, type Employee, type SaleItem } from "@/lib/firebase-services"
 import { useToast } from "@/hooks/use-toast"
 
 // Defining the types for cart items
@@ -252,6 +252,30 @@ export function POSModule() {
         }
       }
 
+      // Create bargain records for discounted items
+      for (const item of cart) {
+        if (item.discount > 0) {
+          await BargainingService.createBargainRecord({
+            date: new Date().toISOString().split("T")[0],
+            time: new Date().toLocaleTimeString(),
+            productName: item.name,
+            productCode: item.code,
+            originalPrice: item.price,
+            finalPrice: item.price - item.discount,
+            discountAmount: item.discount,
+            discountPercentage: item.price > 0 ? Math.round((item.discount / item.price) * 100) : 0,
+            customerName: customerName || "Walk-in Customer",
+            customerPhone: customerPhone || "",
+            staffMember: employees.find((emp) => emp.id === staffMember)?.name || "",
+            reason: "POS Sale Discount",
+            invoiceNumber: saleData.invoiceNumber,
+            category: products.find((p) => p.id === item.id)?.fabricType || "",
+            profitMargin: item.price > 0 ? Math.round(((item.price - item.discount - (products.find((p) => p.id === item.id)?.purchaseCost || 0)) / item.price) * 100) : 0,
+            status: "approved",
+          })
+        }
+      }
+
       // Update local products state to reflect new stock levels
       setProducts(products.map(product => {
         const cartItem = cart.find(item => item.id === product.id)
@@ -260,6 +284,30 @@ export function POSModule() {
         }
         return product
       }))
+
+      // Update employee's monthly sales and performance score
+      if (staffMember) {
+        const selectedEmployee = employees.find((emp) => emp.id === staffMember);
+        if (selectedEmployee) {
+          const newMonthlySales = selectedEmployee.monthlySales + total;
+          
+          // Calculate new performance score based on sales performance
+          // Performance score can be based on meeting targets, sales growth, etc.
+          const targetAchievement = (newMonthlySales / selectedEmployee.monthlyTarget) * 100;
+          const currentPerformance = selectedEmployee.performanceScore;
+          
+          // Update performance score: 70% weight to current performance, 30% to new achievement
+          const newPerformanceScore = Math.min(100, Math.max(0, 
+            (currentPerformance * 0.7) + (Math.min(targetAchievement, 100) * 0.3)
+          ));
+          
+          await EmployeeService.updateEmployee(staffMember, {
+            monthlySales: newMonthlySales,
+            totalSales: selectedEmployee.totalSales + total,
+            performanceScore: Math.round(newPerformanceScore),
+          });
+        }
+      }
 
       toast({
         title: "Sale Completed",

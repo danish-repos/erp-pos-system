@@ -6,20 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-} from "recharts"
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import {
   Download,
@@ -32,18 +19,20 @@ import {
   Target,
   BarChart3,
   PieChartIcon,
+  Pencil,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import {
   SalesService,
   ProductService,
   EmployeeService,
-  InventoryService,
   type SaleRecord,
   type Product,
   type Employee,
-  type InventoryItem,
 } from "@/lib/firebase-services"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 // Strongly type the report data for all chart/summary usages
 interface CategoryData {
@@ -108,20 +97,27 @@ export function ReportsModule() {
   })
   const { toast } = useToast()
 
+  // For editing minStock
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editProduct, setEditProduct] = useState<Product | null>(null)
+  const [editMinStock, setEditMinStock] = useState<number>(0)
+  const [allProducts, setAllProducts] = useState<Product[]>([])
+
   const loadReportData = async () => {
     try {
       setLoading(true)
 
       // Load data from Firebase
-      const [sales, products, employees, inventory] = await Promise.all([
+      const [sales, products, employees] = await Promise.all([
         SalesService.getAllSales(),
         ProductService.getAllProducts(),
         EmployeeService.getAllEmployees(),
-        InventoryService.getAllInventoryItems(),
       ])
 
+      setAllProducts(products)
+
       // Process sales data for charts
-      const processedData = processSalesData(sales, products, employees, inventory)
+      const processedData = processSalesData(sales, products, employees)
       setReportData(processedData)
 
       // Calculate key metrics
@@ -148,7 +144,6 @@ export function ReportsModule() {
     sales: SaleRecord[],
     products: Product[],
     employees: Employee[],
-    inventory: InventoryItem[],
   ): ReportData => {
     // Process sales by month
     const salesByMonth = sales.reduce(
@@ -196,18 +191,15 @@ export function ReportsModule() {
     }))
 
     // Process inventory data
-    const inventoryStats = inventory.reduce(
-      (acc, item) => {
-        if (!acc[item.category]) {
-          acc[item.category] = { category: item.category, inStock: 0, lowStock: 0, outOfStock: 0 }
+    const inventoryStats = products.reduce(
+      (acc, product) => {
+        if (!acc[product.fabricType]) {
+          acc[product.fabricType] = { category: product.fabricType, inStock: 0, lowStock: 0, outOfStock: 0 }
         }
-        if (item.currentStock === 0) {
-          acc[item.category].outOfStock += 1
-        } else if (item.currentStock <= item.minStock) {
-          acc[item.category].lowStock += 1
-        } else {
-          acc[item.category].inStock += 1
-        }
+        acc[product.fabricType].inStock += product.stock || 0
+        acc[product.fabricType].lowStock += product.minStock || 0
+        // Remove .currentStock, use .stock for outOfStock
+        acc[product.fabricType].outOfStock += (product.stock || 0) === 0 ? 1 : 0
         return acc
       },
       {} as Record<string, InventoryData>,
@@ -283,6 +275,37 @@ export function ReportsModule() {
       title: "Report Generated",
       description: `Generating ${reportType} report for ${dateRange}...`,
     })
+  }
+
+  // Edit minStock handlers
+  const openEditDialog = (product: Product) => {
+    setEditProduct(product)
+    setEditMinStock(product.minStock || 0)
+    setEditDialogOpen(true)
+  }
+
+  const closeEditDialog = () => {
+    setEditDialogOpen(false)
+    setEditProduct(null)
+  }
+
+  const handleSaveMinStock = async () => {
+    if (!editProduct) return
+    try {
+      await ProductService.updateProduct(editProduct.id, { minStock: editMinStock })
+      toast({
+        title: "Min Stock Updated",
+        description: `Minimum stock for "${editProduct.name}" updated to ${editMinStock}.`,
+      })
+      closeEditDialog()
+      loadReportData()
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update minimum stock.",
+        variant: "destructive",
+      })
+    }
   }
 
   if (loading) {
@@ -622,6 +645,85 @@ export function ReportsModule() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Editable Min Stock Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Edit Product Minimum Stock</CardTitle>
+              <CardDescription>Update minimum stock for any product</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th className="text-left px-2 py-1">Product</th>
+                      <th className="text-left px-2 py-1">Category</th>
+                      <th className="text-left px-2 py-1">Current Stock</th>
+                      <th className="text-left px-2 py-1">Min Stock</th>
+                      <th className="text-left px-2 py-1">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allProducts.map((product) => (
+                      <tr key={product.id}>
+                        <td className="px-2 py-1">{product.name}</td>
+                        <td className="px-2 py-1">{product.fabricType}</td>
+                        <td className="px-2 py-1">{product.stock}</td>
+                        <td className="px-2 py-1">{product.minStock}</td>
+                        <td className="px-2 py-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openEditDialog(product)}
+                            title="Edit Min Stock"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Edit Min Stock Dialog */}
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <DialogContent className="max-w-sm w-full">
+              <DialogHeader>
+                <DialogTitle>Edit Minimum Stock</DialogTitle>
+                <DialogDescription>
+                  {editProduct ? (
+                    <>
+                      Update minimum stock for <b>{editProduct.name}</b>
+                    </>
+                  ) : null}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="minStock">Minimum Stock</Label>
+                  <Input
+                    id="minStock"
+                    type="number"
+                    min={0}
+                    value={editMinStock}
+                    onChange={(e) => setEditMinStock(Number(e.target.value))}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={closeEditDialog}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSaveMinStock} disabled={editProduct == null}>
+                    Save
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="employee" className="space-y-4">

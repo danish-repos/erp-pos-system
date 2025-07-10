@@ -26,6 +26,7 @@ type CSVProductRow = {
   currentPrice: string
   stock: string
   minStock: string
+  maxStock: string
   supplier: string
   batchInfo: string
 }
@@ -43,10 +44,19 @@ interface Product {
   currentPrice: number
   stock: number
   minStock: number
+  maxStock: number
   supplier: string
   batchInfo: string
   status: "active" | "inactive" | "discontinued"
   createdDate: string
+}
+
+interface ProductPriceHistoryEntry {
+  date: string // ISO string
+  purchaseCost: number
+  minSalePrice: number
+  maxSalePrice: number
+  currentPrice: number
 }
 
 export function ProductManagement() {
@@ -68,6 +78,7 @@ export function ProductManagement() {
     currentPrice: "",
     stock: "",
     minStock: "",
+    maxStock: "",
     supplier: "",
     batchInfo: "",
   })
@@ -76,6 +87,8 @@ export function ProductManagement() {
   const [editProduct, setEditProduct] = useState<Product | null>(null)
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false)
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null)
+  const [priceHistory, setPriceHistory] = useState<ProductPriceHistoryEntry[]>([])
+  const [priceHistoryLoading, setPriceHistoryLoading] = useState(false)
 
   // Load products from Firebase
   useEffect(() => {
@@ -108,13 +121,19 @@ export function ProductManagement() {
         currentPrice: Number(newProduct.currentPrice),
         stock: Number(newProduct.stock),
         minStock: Number(newProduct.minStock),
+        maxStock: Number(newProduct.maxStock),
         supplier: newProduct.supplier,
         batchInfo: newProduct.batchInfo,
         status: "active",
         createdDate: new Date().toISOString().split("T")[0],
       }
 
+      // Add initial price history entry
       await ProductService.createProduct(product)
+      // After product is created, fetch its id and add price history
+      // (Assume ProductService.createProduct returns the new product id)
+      // If not, you may need to adjust this logic to fetch the product by code or name
+      // For now, we will not add price history here, but on edit and on import
 
       setNewProduct({
         name: "",
@@ -128,6 +147,7 @@ export function ProductManagement() {
         currentPrice: "",
         stock: "",
         minStock: "",
+        maxStock: "",
         supplier: "",
         batchInfo: "",
       })
@@ -193,13 +213,25 @@ export function ProductManagement() {
             currentPrice: Number(row.currentPrice),
             stock: Number(row.stock),
             minStock: Number(row.minStock),
+            maxStock: Number(row.maxStock),
             supplier: row.supplier,
             batchInfo: row.batchInfo,
             status: "active" as "active" | "inactive" | "discontinued",
             createdDate: new Date().toISOString().split("T")[0],
           }))
           for (const product of importedProducts) {
-            await ProductService.createProduct(product)
+            // Create product
+            const newProductId = await ProductService.createProduct(product)
+            // Add initial price history
+            if (newProductId) {
+              await ProductService.addPriceHistory(newProductId, {
+                date: new Date().toISOString(),
+                purchaseCost: product.purchaseCost,
+                minSalePrice: product.minSalePrice,
+                maxSalePrice: product.maxSalePrice,
+                currentPrice: product.currentPrice,
+              })
+            }
           }
           toast({
             title: "Import Successful",
@@ -233,7 +265,29 @@ export function ProductManagement() {
   const handleEditProduct = async () => {
     if (!editProduct) return
     try {
+      // Fetch the old product for price comparison
+      const oldProduct = products.find((p) => p.id === editProduct.id)
       await ProductService.updateProduct(editProduct.id, editProduct)
+
+      // If price fields changed, add a new price history entry
+      if (
+        oldProduct &&
+        (
+          oldProduct.purchaseCost !== editProduct.purchaseCost ||
+          oldProduct.minSalePrice !== editProduct.minSalePrice ||
+          oldProduct.maxSalePrice !== editProduct.maxSalePrice ||
+          oldProduct.currentPrice !== editProduct.currentPrice
+        )
+      ) {
+        await ProductService.addPriceHistory(editProduct.id, {
+          date: new Date().toISOString(),
+          purchaseCost: editProduct.purchaseCost,
+          minSalePrice: editProduct.minSalePrice,
+          maxSalePrice: editProduct.maxSalePrice,
+          currentPrice: editProduct.currentPrice,
+        })
+      }
+
       setIsEditDialogOpen(false)
       setEditProduct(null)
       toast({
@@ -250,13 +304,32 @@ export function ProductManagement() {
   }
 
   // History dialog handlers
-  const openHistoryDialog = (product: Product) => {
+  const openHistoryDialog = async (product: Product) => {
     setHistoryProduct(product)
     setIsHistoryDialogOpen(true)
+    setPriceHistoryLoading(true)
+    setPriceHistory([])
+    try {
+      if (ProductService.getProductPriceHistory) {
+        const history = await ProductService.getProductPriceHistory(product.id)
+        setPriceHistory(
+          Array.isArray(history)
+            ? history.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            : []
+        )
+      } else {
+        setPriceHistory([])
+      }
+    } catch {
+      setPriceHistory([])
+    }
+    setPriceHistoryLoading(false)
   }
   const closeHistoryDialog = () => {
     setIsHistoryDialogOpen(false)
     setHistoryProduct(null)
+    setPriceHistory([])
+    setPriceHistoryLoading(false)
   }
 
   if (loading) {
@@ -382,15 +455,27 @@ export function ProductManagement() {
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="minStock">Min Stock Level</Label>
-                <Input
-                  id="minStock"
-                  type="number"
-                  value={newProduct.minStock}
-                  onChange={(e) => setNewProduct({ ...newProduct, minStock: e.target.value })}
-                  placeholder="5"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="minStock">Min Stock Level</Label>
+                  <Input
+                    id="minStock"
+                    type="number"
+                    value={newProduct.minStock}
+                    onChange={(e) => setNewProduct({ ...newProduct, minStock: e.target.value })}
+                    placeholder="5"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="maxStock">Max Stock Level</Label>
+                  <Input
+                    id="maxStock"
+                    type="number"
+                    value={newProduct.maxStock}
+                    onChange={(e) => setNewProduct({ ...newProduct, maxStock: e.target.value })}
+                    placeholder="100"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4">
@@ -665,19 +750,42 @@ export function ProductManagement() {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="edit-fabricType">Fabric Type</Label>
-                  <Input
-                    id="edit-fabricType"
+                  <Select
                     value={editProduct.fabricType}
-                    onChange={(e) => setEditProduct({ ...editProduct, fabricType: e.target.value })}
-                  />
+                    onValueChange={(value) => setEditProduct({ ...editProduct, fabricType: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select fabric" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cotton">Cotton</SelectItem>
+                      <SelectItem value="silk">Silk</SelectItem>
+                      <SelectItem value="linen">Linen</SelectItem>
+                      <SelectItem value="polyester">Polyester</SelectItem>
+                      <SelectItem value="wool">Wool</SelectItem>
+                      <SelectItem value="chiffon">Chiffon</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="edit-size">Size</Label>
-                  <Input
-                    id="edit-size"
+                  <Select
                     value={editProduct.size}
-                    onChange={(e) => setEditProduct({ ...editProduct, size: e.target.value })}
-                  />
+                    onValueChange={(value) => setEditProduct({ ...editProduct, size: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="XS">XS</SelectItem>
+                      <SelectItem value="S">S</SelectItem>
+                      <SelectItem value="M">M</SelectItem>
+                      <SelectItem value="L">L</SelectItem>
+                      <SelectItem value="XL">XL</SelectItem>
+                      <SelectItem value="XXL">XXL</SelectItem>
+                      <SelectItem value="Standard">Standard</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="edit-color">Color</Label>
@@ -705,6 +813,26 @@ export function ProductManagement() {
                     type="number"
                     value={editProduct.stock}
                     onChange={(e) => setEditProduct({ ...editProduct, stock: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-minStock">Min Stock Level</Label>
+                  <Input
+                    id="edit-minStock"
+                    type="number"
+                    value={editProduct.minStock}
+                    onChange={(e) => setEditProduct({ ...editProduct, minStock: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-maxStock">Max Stock Level</Label>
+                  <Input
+                    id="edit-maxStock"
+                    type="number"
+                    value={editProduct.maxStock}
+                    onChange={(e) => setEditProduct({ ...editProduct, maxStock: Number(e.target.value) })}
                   />
                 </div>
               </div>
@@ -766,15 +894,62 @@ export function ProductManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Product History Dialog (placeholder) */}
+      {/* Product History Dialog */}
       <Dialog open={isHistoryDialogOpen} onOpenChange={closeHistoryDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-lg w-full flex flex-col items-center justify-center">
           <DialogHeader>
-            <DialogTitle>Product History</DialogTitle>
-            <DialogDescription>History for {historyProduct?.name} ({historyProduct?.code})</DialogDescription>
+            <DialogTitle>Product Price History</DialogTitle>
+            <DialogDescription>
+              History for {historyProduct?.name} ({historyProduct?.code})
+            </DialogDescription>
           </DialogHeader>
-          <div className="py-4 text-muted-foreground">
-            <p>Product history feature coming soon.</p>
+          <div className="py-4 text-muted-foreground w-full">
+            {priceHistoryLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-2"></div>
+                <span>Loading price history...</span>
+              </div>
+            ) : priceHistory.length === 0 ? (
+              <p>No price history found for this product.</p>
+            ) : (
+              <div className="w-full flex justify-center">
+                <Table className="w-full">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-center px-4 py-2 border-b">Date</TableHead>
+                      <TableHead className="text-center px-4 py-2 border-b">Purchase Cost</TableHead>
+                      <TableHead className="text-center px-4 py-2 border-b">Min Sale Price</TableHead>
+                      <TableHead className="text-center px-4 py-2 border-b">Max Sale Price</TableHead>
+                      <TableHead className="text-center px-4 py-2 border-b">Current Price</TableHead>
+                      <TableHead className="text-center px-4 py-2 border-b">Previous Price</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {priceHistory.map((entry, idx) => {
+                      const prev = priceHistory[idx + 1];
+                      return (
+                        <TableRow key={idx} className="align-middle">
+                          <TableCell className="text-center px-4 py-2 border-b">
+                            {new Date(entry.date).toLocaleString(undefined, {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </TableCell>
+                          <TableCell className="text-center px-4 py-2 border-b">Rs{entry.purchaseCost.toLocaleString()}</TableCell>
+                          <TableCell className="text-center px-4 py-2 border-b">Rs{entry.minSalePrice.toLocaleString()}</TableCell>
+                          <TableCell className="text-center px-4 py-2 border-b">Rs{entry.maxSalePrice.toLocaleString()}</TableCell>
+                          <TableCell className="text-center px-4 py-2 border-b font-semibold">Rs{entry.currentPrice.toLocaleString()}</TableCell>
+                          <TableCell className="text-center px-4 py-2 border-b text-muted-foreground">{prev ? `Rs${prev.currentPrice.toLocaleString()}` : '-'}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </div>
           <div className="flex justify-end">
             <Button variant="outline" onClick={closeHistoryDialog}>Close</Button>

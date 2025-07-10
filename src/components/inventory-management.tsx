@@ -8,255 +8,105 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Edit, Trash2, Search, Package, AlertTriangle, CheckCircle, Archive } from "lucide-react"
-import { InventoryService, type InventoryItem, type StockMovement } from "@/lib/firebase-services"
+import { Search, Package, AlertTriangle, CheckCircle } from "lucide-react"
+import { ProductService, EmployeeService, type Product, type StockMovement, type Employee } from "@/lib/firebase-services"
 import { useToast } from "@/hooks/use-toast"
 
 export function InventoryManagement() {
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
-  const [stockMovements, setStockMovements] = useState<StockMovement[]>([])
+  // Only use products state
+  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isMovementDialogOpen, setIsMovementDialogOpen] = useState(false)
   const { toast } = useToast()
 
-  const [newItem, setNewItem] = useState({
-    name: "",
-    code: "",
-    category: "",
-    currentStock: "",
-    minStock: "",
-    maxStock: "",
-    location: "",
-    supplier: "",
-    purchasePrice: "",
-    salePrice: "",
-    batchNumber: "",
-    expiryDate: "",
-  })
+  // Stock movements state for all products (for Stock Movements tab)
+  const [allStockMovements, setAllStockMovements] = useState<StockMovement[]>([]);
 
-  const [newMovement, setNewMovement] = useState({
-    itemId: "",
-    type: "in" as "in" | "out" | "adjustment" | "damaged" | "returned",
-    quantity: "",
-    reason: "",
-    staff: "",
-    reference: "",
-  })
+  // Employees state
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
 
-  // Load data from Firebase
+  // Fetch products, stock movements, and employees on mount
   useEffect(() => {
-    const unsubscribeInventory = InventoryService.subscribeToInventory((items) => {
-      setInventoryItems(items)
+    setLoading(true)
+    ProductService.getAllProducts().then((prods) => {
+      setProducts(prods)
       setLoading(false)
     })
-
-    const unsubscribeMovements = InventoryService.subscribeToStockMovements((movements) => {
-      setStockMovements(movements)
-    })
-
-    return () => {
-      unsubscribeInventory()
-      unsubscribeMovements()
-    }
+    ProductService.getAllStockMovements().then(setAllStockMovements)
+    EmployeeService.getAllEmployees().then(setEmployees)
   }, [])
 
-  const filteredItems = inventoryItems.filter(
+  // Use filteredProducts for display
+  const filteredProducts = products.filter(
     (item) =>
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchTerm.toLowerCase()),
+      item.fabricType?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const handleAddItem = async () => {
-    try {
-      const currentStock = Number(newItem.currentStock)
-      const minStock = Number(newItem.minStock)
 
-      let itemStatus: "available" | "reserved" | "damaged" | "out-of-stock"
-      if (currentStock === 0) {
-        itemStatus = "out-of-stock"
-      } else if (currentStock <= minStock) {
-        itemStatus = "available" // Still available but low
-      } else {
-        itemStatus = "available"
-      }
 
-      const item: Omit<InventoryItem, "id"> = {
-        name: newItem.name,
-        code: newItem.code,
-        category: newItem.category,
-        currentStock: currentStock,
-        minStock: minStock,
-        maxStock: Number(newItem.maxStock),
-        reservedStock: 0,
-        availableStock: currentStock,
-        status: itemStatus,
-        location: newItem.location,
-        supplier: newItem.supplier,
-        purchasePrice: Number(newItem.purchasePrice),
-        salePrice: Number(newItem.salePrice),
-        batchNumber: newItem.batchNumber,
-        expiryDate: newItem.expiryDate || undefined,
-        lastUpdated: new Date().toISOString(),
-      }
-
-      await InventoryService.createInventoryItem(item)
-
-      // Reset form
-      setNewItem({
-        name: "",
-        code: "",
-        category: "",
-        currentStock: "",
-        minStock: "",
-        maxStock: "",
-        location: "",
-        supplier: "",
-        purchasePrice: "",
-        salePrice: "",
-        batchNumber: "",
-        expiryDate: "",
-      })
-      setIsAddDialogOpen(false)
-
-      toast({
-        title: "Item Added",
-        description: "Inventory item has been successfully added",
-      })
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to add item. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleStockMovement = async () => {
-    try {
-      const selectedInventoryItem = inventoryItems.find((item) => item.id === newMovement.itemId)
-      if (!selectedInventoryItem) return
-
-      const movement: Omit<StockMovement, "id"> = {
-        itemId: newMovement.itemId,
-        itemName: selectedInventoryItem.name,
-        type: newMovement.type,
-        quantity: Number(newMovement.quantity),
-        reason: newMovement.reason,
-        staff: newMovement.staff,
-        reference: newMovement.reference,
-        date: new Date().toISOString().split("T")[0],
-      }
-
-      await InventoryService.createStockMovement(movement)
-
-      // Update inventory item stock
-      const quantityChange = newMovement.type === "in" ? Number(newMovement.quantity) : -Number(newMovement.quantity)
-      const newCurrentStock = Math.max(0, selectedInventoryItem.currentStock + quantityChange)
-
-      let newStatus: "available" | "reserved" | "damaged" | "out-of-stock"
-      if (newCurrentStock === 0) {
-        newStatus = "out-of-stock"
-      } else if (newMovement.type === "damaged") {
-        newStatus = "damaged"
-      } else {
-        newStatus = "available"
-      }
-
-      const updatedItem = {
-        currentStock: newCurrentStock,
-        availableStock: newCurrentStock - selectedInventoryItem.reservedStock,
-        status: newStatus,
-        lastUpdated: new Date().toISOString(),
-      }
-
-      await InventoryService.updateInventoryItem(newMovement.itemId, updatedItem)
-
-      // Reset form
-      setNewMovement({
-        itemId: "",
-        type: "in",
-        quantity: "",
-        reason: "",
-        staff: "",
-        reference: "",
-      })
-      setIsMovementDialogOpen(false)
-
-      toast({
-        title: "Stock Updated",
-        description: "Stock movement has been recorded successfully",
-      })
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to record stock movement. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleDeleteItem = async (id: string) => {
-    try {
-      await InventoryService.deleteInventoryItem(id)
-      toast({
-        title: "Item Deleted",
-        description: "Inventory item has been successfully deleted",
-      })
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to delete item. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "available":
-        return "default"
-      case "reserved":
-        return "secondary"
-      case "damaged":
-        return "destructive"
-      case "out-of-stock":
-        return "destructive"
-      default:
-        return "default"
-    }
-  }
-
-  const getStockLevel = (item: InventoryItem) => {
-    if (item.currentStock === 0) return { level: "Out of Stock", color: "text-red-600" }
-    if (item.currentStock <= item.minStock) return { level: "Low Stock", color: "text-orange-600" }
-    if (item.currentStock >= item.maxStock) return { level: "Overstock", color: "text-blue-600" }
+  const getStockLevel = (item: Product) => {
+    if (item.stock === 0) return { level: "Out of Stock", color: "text-red-600" }
+    if (item.stock <= item.minStock) return { level: "Low Stock", color: "text-orange-600" }
+    if (item.stock >= item.maxStock) return { level: "Overstock", color: "text-blue-600" }
     return { level: "Normal", color: "text-green-600" }
   }
 
-  // Helper function to map string to union type
-  function toMovementType(value: string): "in" | "out" | "adjustment" | "damaged" | "returned" {
-    if (
-      value === "in" ||
-      value === "out" ||
-      value === "adjustment" ||
-      value === "damaged" ||
-      value === "returned"
-    ) {
-      return value
-    }
-    return "in"
+  // Only keep restock (stock in/out) logic
+  const [restockDialogOpen, setRestockDialogOpen] = useState(false)
+  const [restockProduct, setRestockProduct] = useState<Product | null>(null)
+  const [restockAmount, setRestockAmount] = useState("")
+  const [restockType, setRestockType] = useState<"in" | "out">("in")
+
+  // Add state for stock movements dialog
+  const [movementsDialogOpen, setMovementsDialogOpen] = useState(false);
+  const [selectedProductMovements ] = useState<StockMovement[]>([]);
+  const [selectedProductForMovements ] = useState<Product | null>(null);
+
+  const openRestockDialog = (product: Product, type: "in" | "out") => {
+    setRestockProduct(product)
+    setRestockType(type)
+    setRestockAmount("")
+    setRestockDialogOpen(true)
+  }
+
+  // Update handleRestock to also create a stock movement record
+  const handleRestock = async () => {
+    if (!restockProduct) return;
+    const amount = Number(restockAmount);
+    if (isNaN(amount) || amount <= 0) return;
+    const newStock = restockType === "in"
+      ? restockProduct.stock + amount
+      : Math.max(0, restockProduct.stock - amount);
+    await ProductService.updateProduct(restockProduct.id, { stock: newStock, updatedAt: new Date().toISOString() });
+    // Find selected employee name
+    const staffName = employees.find((e) => e.id === selectedEmployeeId)?.name || "Unknown";
+    // Create stock movement record
+    await ProductService.addStockMovement({
+      itemId: restockProduct.id,
+      itemName: restockProduct.name,
+      type: restockType,
+      quantity: amount,
+      reason: restockType === "in" ? "Manual Stock In" : "Manual Stock Out",
+      staff: staffName,
+      date: new Date().toISOString(),
+      reference: "Inventory Manual"
+    });
+    toast({
+      title: restockType === "in" ? "Stock Added" : "Stock Removed",
+      description: `Product stock has been updated.`,
+    });
+    setRestockDialogOpen(false);
+    setRestockProduct(null);
+    setRestockAmount("");
+    setSelectedEmployeeId("");
+    // Refresh products and all stock movements
+    ProductService.getAllProducts().then(setProducts);
+    ProductService.getAllStockMovements().then(setAllStockMovements);
   }
 
   if (loading) {
@@ -275,269 +125,7 @@ export function InventoryManagement() {
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Inventory Management</h2>
         <div className="flex gap-2">
-          <Dialog open={isMovementDialogOpen} onOpenChange={setIsMovementDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Archive className="h-4 w-4 mr-2" />
-                Stock Movement
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Record Stock Movement</DialogTitle>
-                <DialogDescription>Add or remove stock from inventory</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div>
-                  <Label htmlFor="itemSelect">Select Item</Label>
-                  <Select
-                    value={newMovement.itemId}
-                    onValueChange={(value) => setNewMovement({ ...newMovement, itemId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select an item" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {inventoryItems.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name} ({item.code}) - Stock: {item.currentStock}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="movementType">Movement Type</Label>
-                    <Select
-                      value={newMovement.type}
-                      onValueChange={(value: string) => setNewMovement({ ...newMovement, type: toMovementType(value) })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="in">Stock In</SelectItem>
-                        <SelectItem value="out">Stock Out</SelectItem>
-                        <SelectItem value="adjustment">Adjustment</SelectItem>
-                        <SelectItem value="damaged">Damaged</SelectItem>
-                        <SelectItem value="returned">Returned</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      value={newMovement.quantity}
-                      onChange={(e) => setNewMovement({ ...newMovement, quantity: e.target.value })}
-                      placeholder="Enter quantity"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="reason">Reason</Label>
-                  <Input
-                    id="reason"
-                    value={newMovement.reason}
-                    onChange={(e) => setNewMovement({ ...newMovement, reason: e.target.value })}
-                    placeholder="Reason for stock movement"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="staff">Staff Member</Label>
-                    <Input
-                      id="staff"
-                      value={newMovement.staff}
-                      onChange={(e) => setNewMovement({ ...newMovement, staff: e.target.value })}
-                      placeholder="Staff name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="reference">Reference</Label>
-                    <Input
-                      id="reference"
-                      value={newMovement.reference}
-                      onChange={(e) => setNewMovement({ ...newMovement, reference: e.target.value })}
-                      placeholder="Reference number"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsMovementDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleStockMovement}>Record Movement</Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Item
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New Inventory Item</DialogTitle>
-                <DialogDescription>Enter item details for inventory tracking</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="itemName">Item Name</Label>
-                    <Input
-                      id="itemName"
-                      value={newItem.name}
-                      onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                      placeholder="e.g., Cotton Fabric"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="itemCode">Item Code</Label>
-                    <Input
-                      id="itemCode"
-                      value={newItem.code}
-                      onChange={(e) => setNewItem({ ...newItem, code: e.target.value })}
-                      placeholder="e.g., CF001"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="category">Category</Label>
-                    <Select
-                      value={newItem.category}
-                      onValueChange={(value) => setNewItem({ ...newItem, category: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="fabric">Fabric</SelectItem>
-                        <SelectItem value="accessories">Accessories</SelectItem>
-                        <SelectItem value="finished-goods">Finished Goods</SelectItem>
-                        <SelectItem value="raw-materials">Raw Materials</SelectItem>
-                        <SelectItem value="packaging">Packaging</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="location">Location</Label>
-                    <Input
-                      id="location"
-                      value={newItem.location}
-                      onChange={(e) => setNewItem({ ...newItem, location: e.target.value })}
-                      placeholder="e.g., Warehouse A-1"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="currentStock">Current Stock</Label>
-                    <Input
-                      id="currentStock"
-                      type="number"
-                      value={newItem.currentStock}
-                      onChange={(e) => setNewItem({ ...newItem, currentStock: e.target.value })}
-                      placeholder="100"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="minStock">Min Stock</Label>
-                    <Input
-                      id="minStock"
-                      type="number"
-                      value={newItem.minStock}
-                      onChange={(e) => setNewItem({ ...newItem, minStock: e.target.value })}
-                      placeholder="10"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="maxStock">Max Stock</Label>
-                    <Input
-                      id="maxStock"
-                      type="number"
-                      value={newItem.maxStock}
-                      onChange={(e) => setNewItem({ ...newItem, maxStock: e.target.value })}
-                      placeholder="500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="purchasePrice">Purchase Price (Rs)</Label>
-                    <Input
-                      id="purchasePrice"
-                      type="number"
-                      value={newItem.purchasePrice}
-                      onChange={(e) => setNewItem({ ...newItem, purchasePrice: e.target.value })}
-                      placeholder="50"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="salePrice">Sale Price (Rs)</Label>
-                    <Input
-                      id="salePrice"
-                      type="number"
-                      value={newItem.salePrice}
-                      onChange={(e) => setNewItem({ ...newItem, salePrice: e.target.value })}
-                      placeholder="75"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="supplier">Supplier</Label>
-                    <Input
-                      id="supplier"
-                      value={newItem.supplier}
-                      onChange={(e) => setNewItem({ ...newItem, supplier: e.target.value })}
-                      placeholder="Supplier name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="batchNumber">Batch Number</Label>
-                    <Input
-                      id="batchNumber"
-                      value={newItem.batchNumber}
-                      onChange={(e) => setNewItem({ ...newItem, batchNumber: e.target.value })}
-                      placeholder="BATCH-001"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="expiryDate">Expiry Date (Optional)</Label>
-                    <Input
-                      id="expiryDate"
-                      type="date"
-                      value={newItem.expiryDate}
-                      onChange={(e) => setNewItem({ ...newItem, expiryDate: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddItem}>Add Item</Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          {/* Remove add/edit/delete buttons */}
         </div>
       </div>
 
@@ -586,13 +174,18 @@ export function InventoryManagement() {
                       <TableHead>Location</TableHead>
                       <TableHead>Pricing</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Last Updated</TableHead>
+                      <TableHead>Last Stock Update</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredItems.map((item) => {
-                      const stockLevel = getStockLevel(item)
+                    {filteredProducts.map((item) => {
+                      const lowStock = item.stock <= item.minStock
+                      // Find the latest stock movement for this item
+                      const itemMovements = allStockMovements.filter((m) => m.itemId === item.id);
+                      // Sort by date descending
+                      const sortedMovements = [...itemMovements].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                      const lastStockMovement = sortedMovements[0];
                       return (
                         <TableRow key={item.id}>
                           <TableCell>
@@ -602,37 +195,45 @@ export function InventoryManagement() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{item.category}</Badge>
+                            <Badge variant="outline">{item.fabricType}</Badge>
                           </TableCell>
                           <TableCell>
                             <div>
-                              <p className="font-medium">
-                                {item.currentStock} / {item.maxStock}
-                              </p>
-                              <p className={`text-sm ${stockLevel.color}`}>{stockLevel.level}</p>
+                              <p className="font-medium">{item.stock}</p>
+                              <p className={`text-sm ${lowStock ? "text-orange-600" : "text-green-600"}`}>{lowStock ? "Low Stock" : "Normal"}</p>
                             </div>
                           </TableCell>
-                          <TableCell>{item.location}</TableCell>
+                          <TableCell>{item.supplier}</TableCell>
                           <TableCell>
                             <div className="text-sm">
-                              <p>Buy: Rs{item.purchasePrice}</p>
-                              <p>Sell: Rs{item.salePrice}</p>
+                              <p>Buy: Rs{item.purchaseCost}</p>
+                              <p>Sell: Rs{item.currentPrice}</p>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={getStatusColor(item.status) as "destructive" | "default" | "secondary" | "outline" | null | undefined}>{item.status}</Badge>
+                            <Badge variant={item.stock === 0 ? "destructive" : "default"}>{item.stock === 0 ? "out-of-stock" : "available"}</Badge>
                           </TableCell>
                           <TableCell>
-                            <p className="text-sm">{new Date(item.lastUpdated).toLocaleDateString()}</p>
+                            {lastStockMovement
+                              ? (
+                                <div>
+                                  <div className="text-xs">{new Date(lastStockMovement.date).toLocaleString()}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {lastStockMovement.type === "in" ? "Stock In" : lastStockMovement.type === "out" ? "Stock Out" : lastStockMovement.type}
+                                    {lastStockMovement.quantity ? ` (${lastStockMovement.quantity})` : ""}
+                                    {lastStockMovement.staff ? ` by ${lastStockMovement.staff}` : ""}
+                                  </div>
+                                </div>
+                              )
+                              : (
+                                <span className="text-xs text-muted-foreground">N/A</span>
+                              )
+                            }
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
-                              <Button size="sm" variant="outline">
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => handleDeleteItem(item.id)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => openRestockDialog(item, "in")}>Stock In</Button>
+                              <Button size="sm" variant="outline" onClick={() => openRestockDialog(item, "out")}>Stock Out</Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -666,37 +267,36 @@ export function InventoryManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {stockMovements
-                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                      .slice(0, 50)
-                      .map((movement) => (
-                        <TableRow key={movement.id}>
-                          <TableCell>{movement.date}</TableCell>
-                          <TableCell>{movement.itemName}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                movement.type === "in"
-                                  ? "default"
-                                  : movement.type === "out"
-                                    ? "secondary"
-                                    : "destructive"
-                              }
-                            >
-                              {movement.type}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <span className={movement.type === "in" ? "text-green-600" : "text-red-600"}>
-                              {movement.type === "in" ? "+" : "-"}
-                              {movement.quantity}
-                            </span>
-                          </TableCell>
-                          <TableCell>{movement.reason}</TableCell>
-                          <TableCell>{movement.staff}</TableCell>
-                          <TableCell>{movement.reference}</TableCell>
-                        </TableRow>
-                      ))}
+                    {allStockMovements.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground">
+                          No stock movements found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      allStockMovements
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .map((m) => (
+                          <TableRow key={m.id}>
+                            <TableCell>{new Date(m.date).toLocaleString()}</TableCell>
+                            <TableCell>{m.itemName}</TableCell>
+                            <TableCell>{m.type}</TableCell>
+                            <TableCell>{m.quantity}</TableCell>
+                            <TableCell>{m.reason}</TableCell>
+                            <TableCell>
+                              <div>
+                                <span>{m.staff}</span>
+                                {employees.length > 0 && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {employees.find((e) => e.name === m.staff)?.name || ""}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>{m.reference}</TableCell>
+                          </TableRow>
+                        ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -715,8 +315,8 @@ export function InventoryManagement() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {inventoryItems
-                  .filter((item) => item.currentStock <= item.minStock || item.currentStock === 0)
+                {filteredProducts
+                  .filter((item) => item.stock <= item.minStock || item.stock === 0)
                   .map((item) => {
                     const stockLevel = getStockLevel(item)
                     return (
@@ -726,18 +326,18 @@ export function InventoryManagement() {
                           <div>
                             <p className="font-medium">{item.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              Current: {item.currentStock} | Min: {item.minStock}
+                              Current: {item.stock} | Min: {item.minStock}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="destructive">{stockLevel.level}</Badge>
-                          <Button size="sm">Restock</Button>
+                          <Button size="sm" onClick={() => openRestockDialog(item, "in")}>Restock</Button>
                         </div>
                       </div>
                     )
                   })}
-                {inventoryItems.filter((item) => item.currentStock <= item.minStock || item.currentStock === 0)
+                {filteredProducts.filter((item) => item.stock <= item.minStock || item.stock === 0)
                   .length === 0 && (
                   <div className="text-center py-8">
                     <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
@@ -758,7 +358,7 @@ export function InventoryManagement() {
             <CardTitle className="text-sm font-medium">Total Items</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{inventoryItems.length}</div>
+            <div className="text-2xl font-bold">{filteredProducts.length}</div>
             <p className="text-xs text-muted-foreground">In inventory</p>
           </CardContent>
         </Card>
@@ -769,7 +369,7 @@ export function InventoryManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">
-              {inventoryItems.filter((item) => item.currentStock <= item.minStock).length}
+              {filteredProducts.filter((item) => item.stock <= item.minStock).length}
             </div>
             <p className="text-xs text-muted-foreground">Need restocking</p>
           </CardContent>
@@ -781,7 +381,7 @@ export function InventoryManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {inventoryItems.filter((item) => item.currentStock === 0).length}
+              {filteredProducts.filter((item) => item.stock === 0).length}
             </div>
             <p className="text-xs text-muted-foreground">Urgent restocking</p>
           </CardContent>
@@ -793,12 +393,88 @@ export function InventoryManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              Rs{inventoryItems.reduce((sum, item) => sum + item.currentStock * item.salePrice, 0).toLocaleString()}
+              Rs{filteredProducts.reduce((sum, item) => sum + item.stock * item.currentPrice, 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">At sale prices</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Add Restock Dialog at the end of the component */}
+      <Dialog open={restockDialogOpen} onOpenChange={setRestockDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{restockType === "in" ? "Stock In" : "Stock Out"}</DialogTitle>
+            <DialogDescription>Update product stock</DialogDescription>
+          </DialogHeader>
+          {restockProduct && (
+            <div className="space-y-4">
+              <Label>Product</Label>
+              <Input value={restockProduct.name} disabled />
+              <Label>Amount</Label>
+              <Input type="number" value={restockAmount} onChange={e => setRestockAmount(e.target.value)} />
+              <Label>Employee</Label>
+              <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setRestockDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleRestock} disabled={!selectedEmployeeId}>Update</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Stock Movements Dialog at the end of the component */}
+      <Dialog open={movementsDialogOpen} onOpenChange={setMovementsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Stock Movements for {selectedProductForMovements?.name}</DialogTitle>
+            <DialogDescription>All stock in/out/adjustments for this product</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {selectedProductMovements.length === 0 ? (
+              <p className="text-muted-foreground">No stock movements found.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Staff</TableHead>
+                    <TableHead>Reference</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedProductMovements
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((m) => (
+                      <TableRow key={m.id}>
+                        <TableCell>{new Date(m.date).toLocaleString()}</TableCell>
+                        <TableCell>{m.type}</TableCell>
+                        <TableCell>{m.quantity}</TableCell>
+                        <TableCell>{m.reason}</TableCell>
+                        <TableCell>{m.staff}</TableCell>
+                        <TableCell>{m.reference}</TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   )
 }

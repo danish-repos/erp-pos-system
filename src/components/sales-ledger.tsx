@@ -9,9 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   FileText,
   Search,
-  Download,
   Eye,
   Phone,
   MessageSquare,
@@ -19,6 +25,11 @@ import {
   CheckCircle,
   DollarSign,
   User,
+  Calendar,
+  Package,
+  CreditCard,
+  MapPin,
+  UserCheck,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { SalesService, type SaleRecord } from "@/lib/firebase-services"
@@ -29,6 +40,9 @@ export function SalesLedger() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [paymentFilter, setPaymentFilter] = useState("all")
+  const [selectedRecord, setSelectedRecord] = useState<SaleRecord | null>(null)
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const { toast } = useToast()
 
   // useCallback to avoid warning about loadSalesData in useEffect deps
@@ -107,6 +121,116 @@ export function SalesLedger() {
     }
   }
 
+  const handleViewDetails = (record: SaleRecord) => {
+    setSelectedRecord(record)
+    setIsViewDialogOpen(true)
+  }
+
+  const handleCallCustomer = (phone: string) => {
+    if (phone) {
+      window.open(`tel:${phone}`, '_blank')
+      toast({
+        title: "Calling Customer",
+        description: `Initiating call to ${phone}`,
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: "No phone number available",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleMessageCustomer = (phone: string, customerName: string) => {
+    if (phone) {
+      const message = `Hello ${customerName}, thank you for your purchase. We hope you're satisfied with your order!`
+      const whatsappUrl = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
+      window.open(whatsappUrl, '_blank')
+      toast({
+        title: "Messaging Customer",
+        description: `Opening WhatsApp chat with ${customerName}`,
+      })
+    } else {
+      toast({
+        title: "Error",
+        description: "No phone number available",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const generateSalesReport = async () => {
+    try {
+      setIsGeneratingReport(true)
+
+      // Create CSV content
+      const csvHeaders = [
+        "Invoice Number",
+        "Date",
+        "Customer Name",
+        "Customer Phone",
+        "Customer Type",
+        "Items Count",
+        "Subtotal",
+        "Discount",
+        "Total",
+        "Payment Method",
+        "Payment Status",
+        "Delivery Status",
+        "Staff Member",
+        "Notes"
+      ]
+
+      const csvRows = salesRecords.map(record => [
+        record.invoiceNumber,
+        record.date,
+        record.customerName,
+        record.customerPhone,
+        record.customerType,
+        record.items?.length || 0,
+        record.subtotal,
+        record.discount,
+        record.total,
+        record.paymentMethod,
+        record.paymentStatus,
+        record.deliveryStatus,
+        record.staffMember,
+        record.notes
+      ])
+
+      const csvContent = [
+        csvHeaders.join(','),
+        ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n')
+
+      // Create and download the file
+      const blob = new Blob([csvContent], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `sales-report-${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "Report Generated",
+        description: "Sales report has been downloaded successfully",
+      })
+    } catch (error) {
+      console.error("Error generating report:", error)
+      toast({
+        title: "Error",
+        description: "Failed to generate sales report",
+        variant: "destructive",
+      })
+    } finally {
+      setIsGeneratingReport(false)
+    }
+  }
+
   const filteredRecords = salesRecords.filter((record) => {
     const matchesSearch =
       record.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -174,13 +298,13 @@ export function SalesLedger() {
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Sales Ledger</h2>
         <div className="flex gap-2">
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export Sales
-          </Button>
-          <Button variant="outline">
+          <Button 
+            variant="outline" 
+            onClick={generateSalesReport}
+            disabled={isGeneratingReport}
+          >
             <FileText className="h-4 w-4 mr-2" />
-            Generate Report
+            {isGeneratingReport ? "Generating..." : "Generate Report"}
           </Button>
         </div>
       </div>
@@ -371,17 +495,25 @@ export function SalesLedger() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                // setSelectedRecord(record) // Removed as per edit hint
-                                // setIsViewDialogOpen(true) // Removed as per edit hint
-                              }}
+                              onClick={() => handleViewDetails(record)}
+                              title="View Details"
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleCallCustomer(record.customerPhone)}
+                              title="Call Customer"
+                            >
                               <Phone className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleMessageCustomer(record.customerPhone, record.customerName)}
+                              title="Message Customer"
+                            >
                               <MessageSquare className="h-4 w-4" />
                             </Button>
                           </div>
@@ -426,7 +558,11 @@ export function SalesLedger() {
                           <CheckCircle className="h-4 w-4 mr-1" />
                           Mark Delivered
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleCallCustomer(record.customerPhone)}
+                        >
                           <Phone className="h-4 w-4" />
                         </Button>
                       </div>
@@ -474,7 +610,11 @@ export function SalesLedger() {
                           <DollarSign className="h-4 w-4 mr-1" />
                           Record Payment
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleMessageCustomer(record.customerPhone, record.customerName)}
+                        >
                           <MessageSquare className="h-4 w-4" />
                         </Button>
                       </div>
@@ -584,6 +724,169 @@ export function SalesLedger() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Sale Details Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Sale Details
+            </DialogTitle>
+            <DialogDescription>
+              Complete information about this sale transaction
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedRecord && (
+            <div className="space-y-6">
+              {/* Basic Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Invoice:</span>
+                    <span>{selectedRecord.invoiceNumber}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Date:</span>
+                    <span>{selectedRecord.date} at {selectedRecord.time}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Staff:</span>
+                    <span>{selectedRecord.staffMember}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Customer:</span>
+                    <span>{selectedRecord.customerName}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Phone:</span>
+                    <span>{selectedRecord.customerPhone}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={getCustomerTypeColor(selectedRecord.customerType) as "destructive" | "default" | "secondary" | "outline" | undefined}>
+                      {selectedRecord.customerType}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Items ({selectedRecord.items?.length || 0})
+                </h4>
+                <div className="border rounded-lg p-3 space-y-2">
+                  {selectedRecord.items?.map((item, index) => (
+                    <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                      <div>
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-sm text-muted-foreground">Code: {item.code}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium">Rs{item.finalPrice.toLocaleString()}</p>
+                        <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Financial Summary */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>Rs{selectedRecord.subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Discount:</span>
+                    <span className="text-red-600">-Rs{selectedRecord.discount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tax:</span>
+                    <span>Rs{selectedRecord.tax.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-lg border-t pt-2">
+                    <span>Total:</span>
+                    <span>Rs{selectedRecord.total.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Payment:</span>
+                    <Badge variant={getPaymentStatusColor(selectedRecord.paymentStatus) as "destructive" | "default" | "secondary" | "outline" | undefined}>
+                      {selectedRecord.paymentStatus}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Truck className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Delivery:</span>
+                    <Badge variant={getDeliveryStatusColor(selectedRecord.deliveryStatus) as "destructive" | "default" | "secondary" | "outline" | undefined}>
+                      {selectedRecord.deliveryStatus}
+                    </Badge>
+                  </div>
+                  {selectedRecord.deliveryAddress && (
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                      <span className="font-medium">Address:</span>
+                      <span className="text-sm">{selectedRecord.deliveryAddress}</span>
+                    </div>
+                  )}
+                  {selectedRecord.deliveryDate && (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">Delivery Date:</span>
+                      <span>{selectedRecord.deliveryDate}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Notes */}
+              {selectedRecord.notes && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Notes</h4>
+                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+                    {selectedRecord.notes}
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleCallCustomer(selectedRecord.customerPhone)}
+                  className="flex-1"
+                >
+                  <Phone className="h-4 w-4 mr-2" />
+                  Call Customer
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleMessageCustomer(selectedRecord.customerPhone, selectedRecord.customerName)}
+                  className="flex-1"
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Message Customer
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

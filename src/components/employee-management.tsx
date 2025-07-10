@@ -9,14 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Users, Plus, Edit, Trash2, Phone, Mail, DollarSign, Target, Clock, Award } from "lucide-react"
@@ -33,12 +26,46 @@ export function EmployeeManagement() {
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false)
   const { toast } = useToast()
 
+  // For editing employee
+  const [isEditEmployeeOpen, setIsEditEmployeeOpen] = useState(false)
+  const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
+
+  // For editing salary record
+  const [isEditSalaryOpen, setIsEditSalaryOpen] = useState(false)
+  const [editSalaryRecord, setEditSalaryRecord] = useState<SalaryRecord | null>(null)
+
+  // For marking salary as paid
+  const [isMarkSalaryPaidOpen, setIsMarkSalaryPaidOpen] = useState(false)
+  const [markSalaryRecord, setMarkSalaryRecord] = useState<SalaryRecord | null>(null)
+
+  // For rewarding employee
+  const [isRewardOpen, setIsRewardOpen] = useState(false)
+  const [rewardEmployee, setRewardEmployee] = useState<Employee | null>(null)
+  const [rewardAmount, setRewardAmount] = useState("")
+
+  // For setting target
+  const [isSetTargetOpen, setIsSetTargetOpen] = useState(false)
+  const [targetEmployee, setTargetEmployee] = useState<Employee | null>(null)
+  const [newTarget, setNewTarget] = useState("")
+
+  // Add state for manual salary record creation
+  const [isAddSalaryOpen, setIsAddSalaryOpen] = useState(false);
+  const [addSalaryEmployee, setAddSalaryEmployee] = useState<Employee | null>(null);
+  const [addSalaryForm, setAddSalaryForm] = useState({
+    month: "",
+    basicSalary: "",
+    commission: "",
+    bonus: "",
+    deductions: "",
+  });
+
   const [newEmployee, setNewEmployee] = useState({
     name: "",
     email: "",
     phone: "",
     position: "",
     department: "",
+    joinDate: "",
     salary: "",
     commission: "",
     address: "",
@@ -91,7 +118,7 @@ export function EmployeeManagement() {
     switch (status) {
       case "active":
         return "default"
-      case "inactive":
+      case "inactive":  
         return "secondary"
       case "on-leave":
         return "outline"
@@ -121,15 +148,61 @@ export function EmployeeManagement() {
     }
   }
 
+  // Calculate attendance rate based on join date and attendance records
+  const calculateAttendanceRate = (employee: Employee) => {
+    if (!employee.joinDate) return 100
+
+    const joinDate = new Date(employee.joinDate)
+    const today = new Date()
+    
+    // Calculate working days (excluding weekends)
+    let workingDays = 0
+    const currentDate = new Date(joinDate)
+    
+    while (currentDate <= today) {
+      // Skip weekends (Saturday = 6, Sunday = 0)
+      if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
+        workingDays++
+      }
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+    
+    if (workingDays <= 0) return 100
+
+    // Count attendance records for this employee
+    const employeeAttendance = attendanceRecords.filter(record => 
+      record.employeeId === employee.id && 
+      new Date(record.date) >= joinDate
+    )
+
+    // Count present days (including late and half-day as present)
+    const presentDays = employeeAttendance.filter(record => 
+      record.status === "present" || record.status === "late" || record.status === "half-day"
+    ).length
+
+    // Calculate attendance rate
+    const attendanceRate = workingDays > 0 ? Math.round((presentDays / workingDays) * 100) : 100
+    return Math.min(100, Math.max(0, attendanceRate))
+  }
+
   const handleAddEmployee = async () => {
     try {
+      if (!newEmployee.joinDate) {
+        toast({
+          title: "Missing Join Date",
+          description: "Please select a join date for the employee.",
+          variant: "destructive",
+        })
+        return
+      }
+
       const employee: Omit<Employee, "id"> = {
         name: newEmployee.name,
         email: newEmployee.email,
         phone: newEmployee.phone,
         position: newEmployee.position,
         department: newEmployee.department,
-        joinDate: new Date().toISOString().split("T")[0],
+        joinDate: newEmployee.joinDate || new Date().toISOString().split("T")[0],
         salary: Number(newEmployee.salary),
         commission: Number(newEmployee.commission),
         status: "active",
@@ -153,6 +226,7 @@ export function EmployeeManagement() {
         phone: "",
         position: "",
         department: "",
+        joinDate: "",
         salary: "",
         commission: "",
         address: "",
@@ -174,6 +248,27 @@ export function EmployeeManagement() {
       toast({
         title: "Error",
         description: "Failed to add employee. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleEditEmployee = async () => {
+    if (!editEmployee) return
+    try {
+      await EmployeeService.updateEmployee(editEmployee.id, editEmployee)
+      setIsEditEmployeeOpen(false)
+      setEditEmployee(null)
+      toast({
+        title: "Employee Updated",
+        description: "Employee information has been updated.",
+      })
+      const updatedEmployees = await EmployeeService.getAllEmployees()
+      setEmployees(updatedEmployees)
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update employee.",
         variant: "destructive",
       })
     }
@@ -247,6 +342,213 @@ export function EmployeeManagement() {
     }
   }
 
+  // Payroll actions
+  const handleEditSalaryRecord = async () => {
+    if (!editSalaryRecord) return
+    try {
+      await EmployeeService.updateSalaryRecord(editSalaryRecord.id, editSalaryRecord)
+      setIsEditSalaryOpen(false)
+      setEditSalaryRecord(null)
+      toast({
+        title: "Salary Record Updated",
+        description: "Salary record has been updated.",
+      })
+      const updatedSalaryRecords = await EmployeeService.getAllSalaryRecords()
+      setSalaryRecords(updatedSalaryRecords)
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update salary record.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleMarkSalaryPaid = async () => {
+    if (!markSalaryRecord) return
+    try {
+      await EmployeeService.updateSalaryRecord(markSalaryRecord.id, {
+        ...markSalaryRecord,
+        status: "paid",
+      })
+      setIsMarkSalaryPaidOpen(false)
+      setMarkSalaryRecord(null)
+      toast({
+        title: "Salary Marked as Paid",
+        description: "Salary record has been marked as paid.",
+      })
+      const updatedSalaryRecords = await EmployeeService.getAllSalaryRecords()
+      setSalaryRecords(updatedSalaryRecords)
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to mark salary as paid.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Performance actions
+  const handleRewardEmployee = async () => {
+    if (!rewardEmployee) return
+    const amount = Number(rewardAmount)
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid reward amount.",
+        variant: "destructive",
+      })
+      return
+    }
+    try {
+      // Add reward as a bonus in salary record for current month
+      const month = new Date().toISOString().slice(0, 7)
+      // Find or create salary record for this employee/month
+      const salaryRecord = salaryRecords.find(
+        (rec) => rec.employeeId === rewardEmployee.id && rec.month === month
+      )
+      if (!salaryRecord) {
+        // Create a new salary record
+        const newRecord: Omit<SalaryRecord, "id"> = {
+          employeeId: rewardEmployee.id,
+          employeeName: rewardEmployee.name,
+          month,
+          basicSalary: rewardEmployee.salary,
+          commission: Math.round((rewardEmployee.monthlySales * rewardEmployee.commission) / 100),
+          bonus: amount,
+          deductions: 0,
+          totalSalary:
+            rewardEmployee.salary +
+            Math.round((rewardEmployee.monthlySales * rewardEmployee.commission) / 100) +
+            amount,
+          status: "pending",
+        }
+        await EmployeeService.createSalaryRecord(newRecord)
+      } else {
+        // Update bonus and total
+        const updatedRecord = {
+          ...salaryRecord,
+          bonus: (salaryRecord.bonus || 0) + amount,
+          totalSalary:
+            (salaryRecord.basicSalary || 0) +
+            (salaryRecord.commission || 0) +
+            ((salaryRecord.bonus || 0) + amount) -
+            (salaryRecord.deductions || 0),
+        }
+        await EmployeeService.updateSalaryRecord(salaryRecord.id, updatedRecord)
+      }
+      setIsRewardOpen(false)
+      setRewardEmployee(null)
+      setRewardAmount("")
+      toast({
+        title: "Reward Added",
+        description: "Reward/bonus has been added to the employee's salary.",
+      })
+      const updatedSalaryRecords = await EmployeeService.getAllSalaryRecords()
+      setSalaryRecords(updatedSalaryRecords)
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to add reward.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleSetTarget = async () => {
+    if (!targetEmployee) return
+    const target = Number(newTarget)
+    if (isNaN(target) || target <= 0) {
+      toast({
+        title: "Invalid Target",
+        description: "Please enter a valid target amount.",
+        variant: "destructive",
+      })
+      return
+    }
+    try {
+      await EmployeeService.updateEmployee(targetEmployee.id, {
+        ...targetEmployee,
+        monthlyTarget: target,
+      })
+      setIsSetTargetOpen(false)
+      setTargetEmployee(null)
+      setNewTarget("")
+      toast({
+        title: "Target Updated",
+        description: "Monthly sales target has been updated.",
+      })
+      const updatedEmployees = await EmployeeService.getAllEmployees()
+      setEmployees(updatedEmployees)
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update target.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Function to handle manual salary record creation
+  const handleAddSalaryRecord = async () => {
+    if (!addSalaryEmployee) return;
+    
+    const basicSalary = Number(addSalaryForm.basicSalary);
+    const commission = Number(addSalaryForm.commission);
+    const bonus = Number(addSalaryForm.bonus);
+    const deductions = Number(addSalaryForm.deductions);
+    
+    if (isNaN(basicSalary) || basicSalary < 0) {
+      toast({
+        title: "Invalid Basic Salary",
+        description: "Please enter a valid basic salary amount.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const newSalaryRecord: Omit<SalaryRecord, "id"> = {
+        employeeId: addSalaryEmployee.id,
+        employeeName: addSalaryEmployee.name,
+        month: addSalaryForm.month,
+        basicSalary: basicSalary,
+        commission: commission,
+        bonus: bonus,
+        deductions: deductions,
+        totalSalary: basicSalary + commission + bonus - deductions,
+        status: "pending",
+      };
+
+      await EmployeeService.createSalaryRecord(newSalaryRecord);
+      
+      setIsAddSalaryOpen(false);
+      setAddSalaryEmployee(null);
+      setAddSalaryForm({
+        month: "",
+        basicSalary: "",
+        commission: "",
+        bonus: "",
+        deductions: "",
+      });
+
+      toast({
+        title: "Salary Record Added",
+        description: "Salary record has been created successfully.",
+      });
+
+      // Reload salary records
+      const updatedSalaryRecords = await EmployeeService.getAllSalaryRecords();
+      setSalaryRecords(updatedSalaryRecords);
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to create salary record. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -260,6 +562,389 @@ export function EmployeeManagement() {
 
   return (
     <div className="space-y-6">
+      {/* Edit Employee Dialog */}
+      <Dialog open={isEditEmployeeOpen} onOpenChange={setIsEditEmployeeOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>Update employee details and employment information</DialogDescription>
+          </DialogHeader>
+          {editEmployee && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-name">Full Name</Label>
+                  <Input
+                    id="edit-name"
+                    value={editEmployee.name}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editEmployee.email}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, email: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-phone">Phone Number</Label>
+                  <Input
+                    id="edit-phone"
+                    value={editEmployee.phone}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, phone: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-cnic">CNIC</Label>
+                  <Input
+                    id="edit-cnic"
+                    value={editEmployee.cnic}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, cnic: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-position">Position</Label>
+                  <Input
+                    id="edit-position"
+                    value={editEmployee.position}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, position: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-department">Department</Label>
+                  <Select
+                    value={editEmployee.department}
+                    onValueChange={(value) => setEditEmployee({ ...editEmployee, department: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Sales">Sales</SelectItem>
+                      <SelectItem value="Production">Production</SelectItem>
+                      <SelectItem value="Operations">Operations</SelectItem>
+                      <SelectItem value="Management">Management</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-joinDate">Join Date</Label>
+                  <Input
+                    id="edit-joinDate"
+                    type="date"
+                    value={editEmployee.joinDate}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, joinDate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-salary">Monthly Salary (Rs)</Label>
+                  <Input
+                    id="edit-salary"
+                    type="number"
+                    value={editEmployee.salary}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, salary: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-commission">Commission Rate (%)</Label>
+                  <Input
+                    id="edit-commission"
+                    type="number"
+                    step="0.1"
+                    value={editEmployee.commission}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, commission: Number(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-address">Address</Label>
+                  <Input
+                    id="edit-address"
+                    value={editEmployee.address}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, address: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-emergencyContact">Emergency Contact</Label>
+                  <Input
+                    id="edit-emergencyContact"
+                    value={editEmployee.emergencyContact}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, emergencyContact: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-bankAccount">Bank Account</Label>
+                  <Input
+                    id="edit-bankAccount"
+                    value={editEmployee.bankAccount}
+                    onChange={(e) => setEditEmployee({ ...editEmployee, bankAccount: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsEditEmployeeOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleEditEmployee}>Save Changes</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Salary Record Dialog */}
+      <Dialog open={isEditSalaryOpen} onOpenChange={setIsEditSalaryOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Salary Record</DialogTitle>
+            <DialogDescription>Update salary, commission, bonus, or deductions</DialogDescription>
+          </DialogHeader>
+          {editSalaryRecord && (
+            <div className="grid gap-4 py-4">
+              <div>
+                <Label>Basic Salary</Label>
+                <Input
+                  type="number"
+                  value={editSalaryRecord.basicSalary}
+                  onChange={(e) =>
+                    setEditSalaryRecord({ ...editSalaryRecord, basicSalary: Number(e.target.value) })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Commission</Label>
+                <Input
+                  type="number"
+                  value={editSalaryRecord.commission}
+                  onChange={(e) =>
+                    setEditSalaryRecord({ ...editSalaryRecord, commission: Number(e.target.value) })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Bonus</Label>
+                <Input
+                  type="number"
+                  value={editSalaryRecord.bonus}
+                  onChange={(e) =>
+                    setEditSalaryRecord({ ...editSalaryRecord, bonus: Number(e.target.value) })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Deductions</Label>
+                <Input
+                  type="number"
+                  value={editSalaryRecord.deductions}
+                  onChange={(e) =>
+                    setEditSalaryRecord({ ...editSalaryRecord, deductions: Number(e.target.value) })
+                  }
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsEditSalaryOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    // Recalculate total
+                    setEditSalaryRecord((rec) =>
+                      rec
+                        ? {
+                            ...rec,
+                            totalSalary:
+                              (rec.basicSalary || 0) +
+                              (rec.commission || 0) +
+                              (rec.bonus || 0) -
+                              (rec.deductions || 0),
+                          }
+                        : rec
+                    )
+                    handleEditSalaryRecord()
+                  }}
+                >
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark Salary Paid Dialog */}
+      <Dialog open={isMarkSalaryPaidOpen} onOpenChange={setIsMarkSalaryPaidOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark Salary as Paid</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to mark this salary record as paid?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsMarkSalaryPaidOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleMarkSalaryPaid}>Mark as Paid</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reward Dialog */}
+      <Dialog open={isRewardOpen} onOpenChange={setIsRewardOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reward Employee</DialogTitle>
+            <DialogDescription>
+              Enter the reward/bonus amount to add to this employee&apos;s salary.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              type="number"
+              placeholder="Reward Amount (Rs)"
+              value={rewardAmount}
+              onChange={(e) => setRewardAmount(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsRewardOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleRewardEmployee}>Reward</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Set Target Dialog */}
+      <Dialog open={isSetTargetOpen} onOpenChange={setIsSetTargetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Monthly Target</DialogTitle>
+            <DialogDescription>
+              Enter the new monthly sales target for this employee.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              type="number"
+              placeholder="Monthly Target (Rs)"
+              value={newTarget}
+              onChange={(e) => setNewTarget(e.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsSetTargetOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSetTarget}>Set Target</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Salary Record Dialog */}
+      <Dialog open={isAddSalaryOpen} onOpenChange={setIsAddSalaryOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Salary Record</DialogTitle>
+            <DialogDescription>Create a new salary record for an employee</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Select Employee</Label>
+              <Select
+                value={addSalaryEmployee?.id || ""}
+                onValueChange={(value) => {
+                  const employee = employees.find((emp) => emp.id === value);
+                  setAddSalaryEmployee(employee || null);
+                  if (employee) {
+                    setAddSalaryForm({
+                      month: new Date().toISOString().slice(0, 7),
+                      basicSalary: employee.salary.toString(),
+                      commission: "0",
+                      bonus: "0",
+                      deductions: "0",
+                    });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((employee) => (
+                    <SelectItem key={employee.id} value={employee.id}>
+                      {employee.name} - {employee.position}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Month (YYYY-MM)</Label>
+              <Input
+                type="month"
+                value={addSalaryForm.month}
+                onChange={(e) => setAddSalaryForm({ ...addSalaryForm, month: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Basic Salary</Label>
+                <Input
+                  type="number"
+                  value={addSalaryForm.basicSalary}
+                  onChange={(e) => setAddSalaryForm({ ...addSalaryForm, basicSalary: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Commission</Label>
+                <Input
+                  type="number"
+                  value={addSalaryForm.commission}
+                  onChange={(e) => setAddSalaryForm({ ...addSalaryForm, commission: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Bonus</Label>
+                <Input
+                  type="number"
+                  value={addSalaryForm.bonus}
+                  onChange={(e) => setAddSalaryForm({ ...addSalaryForm, bonus: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Deductions</Label>
+                <Input
+                  type="number"
+                  value={addSalaryForm.deductions}
+                  onChange={(e) => setAddSalaryForm({ ...addSalaryForm, deductions: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsAddSalaryOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddSalaryRecord}>Add Salary Record</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Employee Management</h2>
         <div className="flex gap-2">
@@ -446,6 +1131,15 @@ export function EmployeeManagement() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <Label htmlFor="joinDate">Join Date</Label>
+                    <Input
+                      id="joinDate"
+                      type="date"
+                      value={newEmployee.joinDate}
+                      onChange={(e) => setNewEmployee({ ...newEmployee, joinDate: e.target.value })}
+                    />
+                  </div>
+                  <div>
                     <Label htmlFor="salary">Monthly Salary (Rs)</Label>
                     <Input
                       id="salary"
@@ -455,6 +1149,9 @@ export function EmployeeManagement() {
                       placeholder="35000"
                     />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="commission">Commission Rate (%)</Label>
                     <Input
@@ -466,16 +1163,15 @@ export function EmployeeManagement() {
                       placeholder="2.5"
                     />
                   </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="address">Address</Label>
-                  <Input
-                    id="address"
-                    value={newEmployee.address}
-                    onChange={(e) => setNewEmployee({ ...newEmployee, address: e.target.value })}
-                    placeholder="123 Main Street, Lahore"
-                  />
+                  <div>
+                    <Label htmlFor="address">Address</Label>
+                    <Input
+                      id="address"
+                      value={newEmployee.address}
+                      onChange={(e) => setNewEmployee({ ...newEmployee, address: e.target.value })}
+                      placeholder="123 Main Street, Lahore"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -587,6 +1283,7 @@ export function EmployeeManagement() {
                       <TableHead>Contact</TableHead>
                       <TableHead>Salary</TableHead>
                       <TableHead>Performance</TableHead>
+                      <TableHead>Attendance</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -648,14 +1345,38 @@ export function EmployeeManagement() {
                           </div>
                         </TableCell>
                         <TableCell>
+                          <div className="text-center">
+                            <p className="font-medium">{calculateAttendanceRate(employee)}%</p>
+                            <p className="text-xs text-muted-foreground">
+                              {attendanceRecords.filter(record => 
+                                record.employeeId === employee.id && 
+                                (record.status === "present" || record.status === "late" || record.status === "half-day")
+                              ).length} days present
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
                           <Badge variant={getStatusColor(employee.status) as "destructive" | "default" | "secondary" | "outline" | null | undefined}>{employee.status}</Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button size="sm" variant="outline">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditEmployee(employee)
+                                setIsEditEmployeeOpen(true)
+                              }}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                window.open(`tel:${employee.phone}`, "_blank")
+                              }}
+                            >
                               <Phone className="h-4 w-4" />
                             </Button>
                             <Button size="sm" variant="outline" onClick={() => handleDeleteEmployee(employee.id)}>
@@ -721,11 +1442,111 @@ export function EmployeeManagement() {
         <TabsContent value="payroll" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
-                Salary Records
-              </CardTitle>
-              <CardDescription>Manage employee salaries and commission payments</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5" />
+                    Salary Records
+                  </CardTitle>
+                  <CardDescription>Manage employee salaries and commission payments</CardDescription>
+                </div>
+                <Dialog open={isAddSalaryOpen} onOpenChange={setIsAddSalaryOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Salary Record
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add Salary Record</DialogTitle>
+                      <DialogDescription>Create a new salary record for an employee</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Select Employee</Label>
+                        <Select
+                          value={addSalaryEmployee?.id || ""}
+                          onValueChange={(value) => {
+                            const employee = employees.find((emp) => emp.id === value);
+                            setAddSalaryEmployee(employee || null);
+                            if (employee) {
+                              setAddSalaryForm({
+                                month: new Date().toISOString().slice(0, 7),
+                                basicSalary: employee.salary.toString(),
+                                commission: "0",
+                                bonus: "0",
+                                deductions: "0",
+                              });
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Choose employee" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {employees.map((employee) => (
+                              <SelectItem key={employee.id} value={employee.id}>
+                                {employee.name} - {employee.position}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Month (YYYY-MM)</Label>
+                        <Input
+                          type="month"
+                          value={addSalaryForm.month}
+                          onChange={(e) => setAddSalaryForm({ ...addSalaryForm, month: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Basic Salary</Label>
+                          <Input
+                            type="number"
+                            value={addSalaryForm.basicSalary}
+                            onChange={(e) => setAddSalaryForm({ ...addSalaryForm, basicSalary: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <Label>Commission</Label>
+                          <Input
+                            type="number"
+                            value={addSalaryForm.commission}
+                            onChange={(e) => setAddSalaryForm({ ...addSalaryForm, commission: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Bonus</Label>
+                          <Input
+                            type="number"
+                            value={addSalaryForm.bonus}
+                            onChange={(e) => setAddSalaryForm({ ...addSalaryForm, bonus: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <Label>Deductions</Label>
+                          <Input
+                            type="number"
+                            value={addSalaryForm.deductions}
+                            onChange={(e) => setAddSalaryForm({ ...addSalaryForm, deductions: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setIsAddSalaryOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleAddSalaryRecord}>Add Salary Record</Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -772,10 +1593,26 @@ export function EmployeeManagement() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button size="sm" variant="outline">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setMarkSalaryRecord(record)
+                                setIsMarkSalaryPaidOpen(true)
+                              }}
+                              disabled={record.status === "paid"}
+                              title={record.status === "paid" ? "Already paid" : "Mark as paid"}
+                            >
                               <DollarSign className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEditSalaryRecord(record)
+                                setIsEditSalaryOpen(true)
+                              }}
+                            >
                               <Edit className="h-4 w-4" />
                             </Button>
                           </div>
@@ -832,7 +1669,7 @@ export function EmployeeManagement() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Attendance Rate</p>
-                      <p className="text-lg font-bold">{employee.attendanceRate}%</p>
+                      <p className="text-lg font-bold">{calculateAttendanceRate(employee)}%</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Total Commission</p>
@@ -841,11 +1678,25 @@ export function EmployeeManagement() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setRewardEmployee(employee)
+                        setIsRewardOpen(true)
+                      }}
+                    >
                       <Award className="h-4 w-4 mr-1" />
                       Reward
                     </Button>
-                    <Button size="sm" variant="outline">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setTargetEmployee(employee)
+                        setIsSetTargetOpen(true)
+                      }}
+                    >
                       <Target className="h-4 w-4 mr-1" />
                       Set Target
                     </Button>
@@ -855,6 +1706,7 @@ export function EmployeeManagement() {
             ))}
           </div>
         </TabsContent>
+        
       </Tabs>
     </div>
   )
