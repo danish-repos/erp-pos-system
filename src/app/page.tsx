@@ -19,6 +19,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route"
 import { useAuth } from "@/contexts/auth-context"
 import { LogOut, User } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default function ERPSystem() {
   const [activeModule, setActiveModule] = useState("dashboard")
@@ -70,6 +71,7 @@ export default function ERPSystem() {
               <h1 className="ml-4 text-lg font-semibold">Power Project ERP + POS System</h1>
             </div>
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

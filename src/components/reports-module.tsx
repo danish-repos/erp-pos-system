@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { useTheme } from "next-themes";
 
 export function ReportsModule() {
   const [activeTab, setActiveTab] = useState("daily-sales");
@@ -18,6 +19,7 @@ export function ReportsModule() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { resolvedTheme } = useTheme();
 
   // Data states
   const [sales, setSales] = useState<SaleRecord[]>([]);
@@ -194,7 +196,7 @@ export function ReportsModule() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-h-[calc(100vh-80px)]">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Reports & Analytics</h2>
         <Button onClick={handleDownloadPDF} disabled={isGeneratingPDF}>
@@ -204,11 +206,19 @@ export function ReportsModule() {
             <Download className="h-4 w-4 mr-2" />
           )}
           Download PDF
-          </Button>
+        </Button>
       </div>
-      <div ref={reportRef} className="space-y-6 bg-white p-4 rounded">
+      <div
+        ref={reportRef}
+        className={`space-y-6 p-4 rounded-lg ${
+          resolvedTheme === "dark"
+            ? "bg-neutral-900 text-white"
+            : "bg-white text-black"
+        }`}
+        style={{ boxShadow: resolvedTheme === "dark" ? "0 2px 8px #0006" : "0 2px 8px #0001" }}
+      >
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
+          <TabsList>
             <TabsTrigger value="daily-sales">Daily Sales Summary</TabsTrigger>
             <TabsTrigger value="monthly-profit">Monthly Profit Report</TabsTrigger>
             <TabsTrigger value="bargain-impact">Bargain Impact Report</TabsTrigger>
@@ -216,27 +226,27 @@ export function ReportsModule() {
             <TabsTrigger value="credit-aging">Credit Aging Report</TabsTrigger>
             <TabsTrigger value="employee-sales">Employee Sales Report</TabsTrigger>
             <TabsTrigger value="top-selling">Top 10 Selling Items</TabsTrigger>
-        </TabsList>
+          </TabsList>
           <TabsContent value="daily-sales">
-            <Card>
+            <Card className={resolvedTheme === "dark" ? "bg-neutral-800 text-white" : "bg-white text-black"}>
               <CardHeader>
                 <CardTitle>Daily Sales Summary</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={dailySales} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid stroke="#eeeeee" strokeDasharray="3 3" />
-                    <XAxis dataKey="day" />
-                      <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="total" fill="#4f46e5" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                    <CartesianGrid stroke={resolvedTheme === "dark" ? "#444" : "#eee"} strokeDasharray="3 3" />
+                    <XAxis dataKey="day" stroke={resolvedTheme === "dark" ? "#fff" : "#222"} tick={{ fill: resolvedTheme === "dark" ? "#fff" : "#222" }} />
+                    <YAxis stroke={resolvedTheme === "dark" ? "#fff" : "#222"} tick={{ fill: resolvedTheme === "dark" ? "#fff" : "#222" }} />
+                    <Tooltip contentStyle={{ background: resolvedTheme === "dark" ? "#222" : "#fff", color: resolvedTheme === "dark" ? "#fff" : "#222" }} />
+                    <Bar dataKey="total" fill="#6366f1" />
+                  </BarChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
           </TabsContent>
           <TabsContent value="monthly-profit">
-            <Card>
+            <Card className={resolvedTheme === "dark" ? "bg-neutral-800 text-white" : "bg-white text-black"}>
               <CardHeader>
                 <CardTitle>Monthly Profit Report</CardTitle>
               </CardHeader>
@@ -252,7 +262,7 @@ export function ReportsModule() {
             </Card>
         </TabsContent>
           <TabsContent value="bargain-impact">
-            <Card>
+            <Card className={resolvedTheme === "dark" ? "bg-neutral-800 text-white" : "bg-white text-black"}>
               <CardHeader>
                 <CardTitle>Bargain Impact Report</CardTitle>
               </CardHeader>
@@ -265,17 +275,17 @@ export function ReportsModule() {
             </Card>
           </TabsContent>
           <TabsContent value="disposal-loss">
-            <Card>
+            <Card className={resolvedTheme === "dark" ? "bg-neutral-800 text-white" : "bg-white text-black"}>
               <CardHeader>
                 <CardTitle>Disposal Loss Chart</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={disposalLoss} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid stroke="#eeeeee" strokeDasharray="3 3" />
-                    <XAxis dataKey="day" />
-                    <YAxis />
-                    <Tooltip />
+                    <CartesianGrid stroke={resolvedTheme === "dark" ? "#444" : "#eee"} strokeDasharray="3 3" />
+                    <XAxis dataKey="day" stroke={resolvedTheme === "dark" ? "#fff" : "#222"} tick={{ fill: resolvedTheme === "dark" ? "#fff" : "#222" }} />
+                    <YAxis stroke={resolvedTheme === "dark" ? "#fff" : "#222"} tick={{ fill: resolvedTheme === "dark" ? "#fff" : "#222" }} />
+                    <Tooltip contentStyle={{ background: resolvedTheme === "dark" ? "#222" : "#fff", color: resolvedTheme === "dark" ? "#fff" : "#222" }} />
                     <Line type="monotone" dataKey="loss" stroke="#ef4444" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -283,17 +293,17 @@ export function ReportsModule() {
             </Card>
           </TabsContent>
           <TabsContent value="credit-aging">
-            <Card>
+            <Card className={resolvedTheme === "dark" ? "bg-neutral-800 text-white" : "bg-white text-black"}>
               <CardHeader>
                 <CardTitle>Credit Aging Report</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={creditAging} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid stroke="#eeeeee" strokeDasharray="3 3" />
-                    <XAxis dataKey="bucket" />
-                    <YAxis />
-                    <Tooltip />
+                    <CartesianGrid stroke={resolvedTheme === "dark" ? "#444" : "#eee"} strokeDasharray="3 3" />
+                    <XAxis dataKey="bucket" stroke={resolvedTheme === "dark" ? "#fff" : "#222"} tick={{ fill: resolvedTheme === "dark" ? "#fff" : "#222" }} />
+                    <YAxis stroke={resolvedTheme === "dark" ? "#fff" : "#222"} tick={{ fill: resolvedTheme === "dark" ? "#fff" : "#222" }} />
+                    <Tooltip contentStyle={{ background: resolvedTheme === "dark" ? "#222" : "#fff", color: resolvedTheme === "dark" ? "#fff" : "#222" }} />
                     <Bar dataKey="amount" fill="#f59e42" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -301,17 +311,17 @@ export function ReportsModule() {
           </Card>
         </TabsContent>
           <TabsContent value="employee-sales">
-            <Card>
+            <Card className={resolvedTheme === "dark" ? "bg-neutral-800 text-white" : "bg-white text-black"}>
               <CardHeader>
                 <CardTitle>Employee Sales Report</CardTitle>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={employeeSales} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid stroke="#eeeeee" strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
+                    <CartesianGrid stroke={resolvedTheme === "dark" ? "#444" : "#eee"} strokeDasharray="3 3" />
+                    <XAxis dataKey="name" stroke={resolvedTheme === "dark" ? "#fff" : "#222"} tick={{ fill: resolvedTheme === "dark" ? "#fff" : "#222" }} />
+                    <YAxis stroke={resolvedTheme === "dark" ? "#fff" : "#222"} tick={{ fill: resolvedTheme === "dark" ? "#fff" : "#222" }} />
+                    <Tooltip contentStyle={{ background: resolvedTheme === "dark" ? "#222" : "#fff", color: resolvedTheme === "dark" ? "#fff" : "#222" }} />
                     <Bar dataKey="sales" fill="#10b981" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -319,7 +329,7 @@ export function ReportsModule() {
             </Card>
           </TabsContent>
           <TabsContent value="top-selling">
-            <Card>
+            <Card className={resolvedTheme === "dark" ? "bg-neutral-800 text-white" : "bg-white text-black"}>
               <CardHeader>
                 <CardTitle>Top 10 Selling Items</CardTitle>
               </CardHeader>
@@ -331,7 +341,7 @@ export function ReportsModule() {
                         <Cell key={`cell-${idx}`} fill={["#6366f1", "#f59e42", "#10b981", "#ef4444", "#fbbf24", "#3b82f6", "#a21caf", "#f472b6", "#14b8a6", "#f87171"][idx % 10]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip contentStyle={{ background: resolvedTheme === "dark" ? "#222" : "#fff", color: resolvedTheme === "dark" ? "#fff" : "#222" }} />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
