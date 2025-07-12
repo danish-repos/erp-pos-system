@@ -1,6 +1,11 @@
 import { ref, push, set, get, update as fbUpdate, remove, onValue, off } from "firebase/database"
 import { database } from "./firebase"
 
+// Helper function to check if Firebase is initialized
+const isFirebaseInitialized = () => {
+  return typeof window !== 'undefined' && database !== null;
+};
+
 // Type definitions
 export interface Product {
   id: string
@@ -230,8 +235,12 @@ export interface SalaryRecord {
 export class FirebaseService {
   // Create
   static async create(path: string, data: Record<string, unknown>): Promise<string | null> {
+    if (!isFirebaseInitialized()) {
+      console.warn('Firebase not initialized, skipping create operation');
+      return null;
+    }
     try {
-      const newRef = push(ref(database, path))
+      const newRef = push(ref(database!, path))
       await set(newRef, { ...data, id: newRef.key, createdAt: new Date().toISOString() })
       return newRef.key
     } catch (error) {
@@ -242,8 +251,12 @@ export class FirebaseService {
 
   // Read all with proper typing
   static async getAll<T>(path: string): Promise<T[]> {
+    if (!isFirebaseInitialized()) {
+      console.warn('Firebase not initialized, returning empty array');
+      return [];
+    }
     try {
-      const snapshot = await get(ref(database, path))
+      const snapshot = await get(ref(database!, path))
       if (snapshot.exists()) {
         const data = snapshot.val()
         return Object.values(data) as T[]
@@ -257,8 +270,12 @@ export class FirebaseService {
 
   // Read by ID
   static async getById<T>(path: string, id: string): Promise<T | null> {
+    if (!isFirebaseInitialized()) {
+      console.warn('Firebase not initialized, returning null');
+      return null;
+    }
     try {
-      const snapshot = await get(ref(database, `${path}/${id}`))
+      const snapshot = await get(ref(database!, `${path}/${id}`))
       return snapshot.exists() ? (snapshot.val() as T) : null
     } catch (error) {
       console.error(`Error getting ${path}/${id}:`, error)
@@ -268,8 +285,12 @@ export class FirebaseService {
 
   // Update
   static async update(path: string, id: string, data: Record<string, unknown>): Promise<void> {
+    if (!isFirebaseInitialized()) {
+      console.warn('Firebase not initialized, skipping update operation');
+      return;
+    }
     try {
-      await fbUpdate(ref(database, `${path}/${id}`), { ...data, updatedAt: new Date().toISOString() })
+      await fbUpdate(ref(database!, `${path}/${id}`), { ...data, updatedAt: new Date().toISOString() })
     } catch (error) {
       console.error(`Error updating ${path}/${id}:`, error)
       throw error
@@ -278,8 +299,12 @@ export class FirebaseService {
 
   // Delete
   static async delete(path: string, id: string): Promise<void> {
+    if (!isFirebaseInitialized()) {
+      console.warn('Firebase not initialized, skipping delete operation');
+      return;
+    }
     try {
-      await remove(ref(database, `${path}/${id}`))
+      await remove(ref(database!, `${path}/${id}`))
     } catch (error) {
       console.error(`Error deleting ${path}/${id}:`, error)
       throw error
@@ -288,7 +313,11 @@ export class FirebaseService {
 
   // Real-time listener with proper typing
   static subscribe<T>(path: string, callback: (data: T[]) => void): () => void {
-    const dbRef = ref(database, path)
+    if (!isFirebaseInitialized()) {
+      console.warn('Firebase not initialized, returning no-op unsubscribe function');
+      return () => {};
+    }
+    const dbRef = ref(database!, path)
     onValue(dbRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.val()

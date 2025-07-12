@@ -34,6 +34,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast()
 
   useEffect(() => {
+    if (!auth) {
+      setLoading(false)
+      return
+    }
+    
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user)
       setLoading(false)
@@ -67,6 +72,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
+      // Check if Firebase is initialized
+      if (!auth) {
+        toast({
+          title: "Service Unavailable",
+          description: "Authentication service is not available. Please try again later.",
+          variant: "destructive",
+        })
+        return
+      }
+
       // Sign in with Firebase using the single user credentials
       const userCredential = await signInWithEmailAndPassword(auth, SINGLE_USER_EMAIL, SINGLE_USER_PASSWORD)
 
@@ -76,16 +91,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       // Log login attempt
-      const loginLog = {
-        email: email,
-        name: SINGLE_USER_NAME,
-        loginTime: new Date().toISOString(),
-        ip: "unknown", // You can get this from request headers in a real app
-        userAgent: navigator.userAgent,
+      if (database) {
+        const loginLog = {
+          email: email,
+          name: SINGLE_USER_NAME,
+          loginTime: new Date().toISOString(),
+          ip: "unknown", // You can get this from request headers in a real app
+          userAgent: navigator.userAgent,
+        }
+        
+        const logRef = ref(database, `loginLogs/${Date.now()}`)
+        await set(logRef, loginLog)
       }
-      
-      const logRef = ref(database, `loginLogs/${Date.now()}`)
-      await set(logRef, loginLog)
 
       toast({
         title: "Welcome back!",
@@ -123,7 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true)
 
       // Log logout attempt
-      if (user) {
+      if (user && database) {
         const logoutLog = {
           email: user.email,
           name: SINGLE_USER_NAME,
@@ -136,7 +153,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await set(logRef, logoutLog)
       }
 
-      await signOut(auth)
+      if (auth) {
+        await signOut(auth)
+      }
 
       toast({
         title: "Signed Out",

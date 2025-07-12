@@ -1,7 +1,6 @@
-import { initializeApp } from "firebase/app"
-import { getAuth } from "firebase/auth"
-import { getDatabase } from "firebase/database"
-
+import { initializeApp, type FirebaseApp } from "firebase/app"
+import { getAuth, type Auth } from "firebase/auth"
+import { getDatabase, type Database } from "firebase/database"
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -14,21 +13,29 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Check for missing env vars
-for (const [key, value] of Object.entries(firebaseConfig)) {
-  if (!value) {
-    throw new Error(`Missing Firebase environment variable: ${key}`);
+// Only initialize Firebase if we're in the browser and have the required config
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let database: Database | null = null;
+
+if (typeof window !== 'undefined') {
+  // Check for missing env vars only in browser
+  const missingVars = Object.entries(firebaseConfig)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+
+  if (missingVars.length > 0) {
+    console.warn(`Missing Firebase environment variables: ${missingVars.join(', ')}`);
+  } else {
+    try {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      database = getDatabase(app);
+    } catch (error) {
+      console.error('Failed to initialize Firebase:', error);
+    }
   }
 }
-  
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig)
-
-// Initialize Firebase Authentication and get a reference to the service
-export const auth = getAuth(app)
-
-// Initialize Realtime Database and get a reference to the service
-export const database = getDatabase(app)
-
-export default app
+export { auth, database };
+export default app;
