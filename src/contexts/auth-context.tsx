@@ -2,23 +2,19 @@
 
 import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
-import {
-  type User,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  updateProfile,
-} from "firebase/auth"
-import { ref, set, get } from "firebase/database"
+import {type User, onAuthStateChanged, signInWithEmailAndPassword, signOut, updateProfile} from "firebase/auth"
+import { ref, set } from "firebase/database"
 import { auth, database } from "@/lib/firebase"
 import { useToast } from "@/hooks/use-toast"
+
+const SINGLE_USER_EMAIL = process.env.NEXT_PUBLIC_SINGLE_USER_EMAIL || ""
+const SINGLE_USER_PASSWORD = process.env.NEXT_PUBLIC_SINGLE_USER_PASSWORD || ""
+const SINGLE_USER_NAME = process.env.NEXT_PUBLIC_SINGLE_USER_NAME || ""
 
 interface AuthContextType {
   user: User | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, name?: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -49,24 +45,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true)
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
-
-      // Get user data from database
-      const userRef = ref(database, `users/${userCredential.user.uid}`)
-      const snapshot = await get(userRef)
-
-      if (snapshot.exists()) {
-        const userData = snapshot.val()
+      
+      // Check if it's the authorized single user
+      if (email.toLowerCase() !== SINGLE_USER_EMAIL.toLowerCase()) {
+        console.log(email, SINGLE_USER_EMAIL)
         toast({
-          title: "Welcome back!",
-          description: `Hello ${userData.name || userCredential.user.email}`,
+          title: "Access Denied",
+          description: "This email is not authorized to access the system.",
+          variant: "destructive",
         })
-      } else {
-        toast({
-          title: "Welcome back!",
-          description: "Successfully signed in",
-        })
+        return
       }
+
+      // Check if password matches
+      if (password !== SINGLE_USER_PASSWORD) {
+        toast({
+          title: "Invalid Credentials",
+          description: "Email or password is incorrect.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Sign in with Firebase using the single user credentials
+      const userCredential = await signInWithEmailAndPassword(auth, SINGLE_USER_EMAIL, SINGLE_USER_PASSWORD)
+
+      // Update user profile with display name
+      await updateProfile(userCredential.user, {
+        displayName: SINGLE_USER_NAME,
+      })
+
+      // Log login attempt
+      const loginLog = {
+        email: email,
+        name: SINGLE_USER_NAME,
+        loginTime: new Date().toISOString(),
+        ip: "unknown", // You can get this from request headers in a real app
+        userAgent: navigator.userAgent,
+      }
+      
+      const logRef = ref(database, `loginLogs/${Date.now()}`)
+      await set(logRef, loginLog)
+
+      toast({
+        title: "Welcome back!",
+        description: `Successfully signed in as ${SINGLE_USER_NAME}.`,
+      })
     } catch (error: unknown) {
       let errorMessage = "Failed to sign in"
       const err = error as { code?: string; message?: string }
@@ -94,78 +118,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signUp = async (email: string, password: string, name?: string) => {
-    try {
-      setLoading(true)
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-
-      // Update user profile with name if provided
-      if (name) {
-        await updateProfile(userCredential.user, {
-          displayName: name,
-        })
-      }
-
-      // Save user data to Realtime Database
-      const userData = {
-        uid: userCredential.user.uid,
-        email: userCredential.user.email,
-        name: name || "",
-        role: "user", // Default role
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-        isActive: true,
-      }
-
-      const userRef = ref(database, `users/${userCredential.user.uid}`)
-      await set(userRef, userData)
-
-      toast({
-        title: "Account Created!",
-        description: `Welcome ${name || email}! Your account has been created successfully.`,
-      })
-    } catch (error: unknown) {
-      let errorMessage = "Failed to create account"
-      const err = error as { code?: string; message?: string }
-      switch (err.code) {
-        case "auth/email-already-in-use":
-          errorMessage = "An account with this email already exists"
-          break
-        case "auth/invalid-email":
-          errorMessage = "Invalid email address"
-          break
-        case "auth/weak-password":
-          errorMessage = "Password is too weak"
-          break
-        default:
-          errorMessage = err.message || errorMessage
-      }
-      toast({
-        title: "Sign Up Failed",
-        description: errorMessage,
-        variant: "destructive",
-      })
-      throw error
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const logout = async () => {
     try {
       setLoading(true)
 
-      // Update last logout time in database
+      // Log logout attempt
       if (user) {
-        const userRef = ref(database, `users/${user.uid}`)
-        const snapshot = await get(userRef)
-        if (snapshot.exists()) {
-          const userData = snapshot.val()
-          await set(userRef, {
-            ...userData,
-            lastLogout: new Date().toISOString(),
-          })
+        const logoutLog = {
+          email: user.email,
+          name: SINGLE_USER_NAME,
+          logoutTime: new Date().toISOString(),
+          ip: "unknown",
+          userAgent: navigator.userAgent,
         }
+        
+        const logRef = ref(database, `logoutLogs/${Date.now()}`)
+        await set(logRef, logoutLog)
       }
 
       await signOut(auth)
@@ -191,7 +159,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     loading,
     signIn,
-    signUp,
     logout,
   }
 

@@ -482,6 +482,10 @@ export function SalesLedger() {
                             <Badge variant={getDeliveryStatusColor(record.deliveryStatus) as "destructive" | "default" | "secondary" | "outline" | undefined}>
                               {record.deliveryStatus}
                             </Badge>
+                            {/* Delivery status is now only shown, not editable here */}
+                            {record.deliveryAddress && (
+                              <p className="text-xs text-muted-foreground">{record.deliveryAddress}</p>
+                            )}
                             {record.deliveryDate && (
                               <p className="text-xs text-muted-foreground">{record.deliveryDate}</p>
                             )}
@@ -557,6 +561,13 @@ export function SalesLedger() {
                         <Button size="sm" onClick={() => updateDeliveryStatus(record.id, "delivered")}>
                           <CheckCircle className="h-4 w-4 mr-1" />
                           Mark Delivered
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => updateDeliveryStatus(record.id, "cancelled")}
+                        >
+                          Cancel
                         </Button>
                         <Button 
                           size="sm" 

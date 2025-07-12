@@ -33,8 +33,8 @@ export function SignInForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle>Sign In</CardTitle>
-        <CardDescription>Enter your email and password to access your account</CardDescription>
+        <CardTitle>Admin Login</CardTitle>
+        <CardDescription>Enter your credentials to access the ERP system</CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
@@ -43,7 +43,7 @@ export function SignInForm() {
             <Input
               id="email"
               type="email"
-              placeholder="Enter your email"
+              placeholder="Enter admin email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

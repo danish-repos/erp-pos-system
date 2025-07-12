@@ -48,8 +48,9 @@ import {
   AlertTriangle,
   Package,
   DollarSign,
+  Trash2,
 } from "lucide-react";
-import { DisposalService, type DisposalRecord } from "@/lib/firebase-services";
+import { ProductService, DisposalService, type DisposalRecord, type Product } from "@/lib/firebase-services";
 import { useToast } from "@/hooks/use-toast";
 
 type ConditionType = "damaged" | "expired" | "defective" | "unsold" | "stolen";
@@ -149,6 +150,7 @@ function getMethodColor(
 
 export function DisposalModule() {
   const [disposalRecords, setDisposalRecords] = useState<DisposalRecord[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -168,19 +170,60 @@ export function DisposalModule() {
     batchNumber: "",
     supplierName: "",
   });
+  const [productSearch, setProductSearch] = useState("");
+  const [, setSelectedProduct] = useState<Product | null>(null);
+
+  // For delete confirmation dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState<DisposalRecord | null>(null);
 
   useEffect(() => {
     const unsubscribe = DisposalService.subscribeToDisposalRecords((records) => {
       setDisposalRecords(records || []);
       setLoading(false);
     });
-
+    ProductService.getAllProducts().then(setProducts);
     return () => {
       if (typeof unsubscribe === "function") {
         unsubscribe();
       }
     };
   }, []);
+
+  // Filter products for dropdown
+  const filteredProducts = productSearch
+    ? products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+          p.code.toLowerCase().includes(productSearch.toLowerCase())
+      )
+    : products;
+
+  // When a product is selected, auto-fill related fields
+  const handleProductSelect = (product: Product | null, typedValue?: string) => {
+    setSelectedProduct(product);
+    if (product) {
+      setNewDisposal((prev) => ({
+        ...prev,
+        itemName: product.name,
+        itemCode: product.code,
+        category: product.fabricType || "",
+        originalPrice: product.purchaseCost ? String(product.purchaseCost) : "",
+        supplierName: product.supplier || "",
+        batchNumber: product.batchInfo || "",
+      }));
+    } else {
+      setNewDisposal((prev) => ({
+        ...prev,
+        itemName: typedValue || "",
+        itemCode: "",
+        category: "",
+        originalPrice: "",
+        supplierName: "",
+        batchNumber: "",
+      }));
+    }
+  };
 
   const filteredRecords = disposalRecords.filter((record) => {
     const term = searchTerm.toLowerCase();
@@ -296,6 +339,27 @@ export function DisposalModule() {
     }
   };
 
+  // Delete handler
+  const handleDeleteDisposal = async (record: DisposalRecord) => {
+    try {
+      await DisposalService.deleteDisposalRecord(record.id);
+      toast({
+        title: "Disposal Record Deleted",
+        description: "Disposal record has been deleted.",
+        variant: "default",
+      });
+      setDeleteDialogOpen(false);
+      setRecordToDelete(null);
+    } catch (err) {
+      console.error("Error deleting disposal record:", err);
+      toast({
+        title: "Error",
+        description: "Failed to delete disposal record. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -326,26 +390,49 @@ export function DisposalModule() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              {/* Product selection dropdown */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="itemName">Item Name</Label>
-                  <Input
-                    id="itemName"
-                    value={newDisposal.itemName}
-                    onChange={(e) =>
-                      setNewDisposal({ ...newDisposal, itemName: e.target.value })
-                    }
-                    placeholder="Item name"
-                  />
+                  <Label htmlFor="itemName">Product</Label>
+                  <div className="relative">
+                    <Input
+                      id="itemName"
+                      value={newDisposal.itemName}
+                      onChange={(e) => {
+                        setProductSearch(e.target.value);
+                        handleProductSelect(null, e.target.value);
+                      }}
+                      placeholder="Type to search or add product"
+                      autoComplete="off"
+                    />
+                    {productSearch && filteredProducts.length > 0 && (
+                      <div className="absolute z-10 bg-white border rounded w-full max-h-40 overflow-y-auto shadow-lg">
+                        {filteredProducts.map((product) => (
+                          <div
+                            key={product.id}
+                            className="px-3 py-2 cursor-pointer hover:bg-gray-100"
+                            onClick={() => {
+                              handleProductSelect(product);
+                              setProductSearch("");
+                            }}
+                          >
+                            <span className="font-medium">{product.name}</span>
+                            <span className="ml-2 text-xs text-muted-foreground">{product.code}</span>
+                            {product.fabricType && (
+                              <span className="ml-2 text-xs text-muted-foreground">{product.fabricType}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="itemCode">Item Code</Label>
                   <Input
                     id="itemCode"
                     value={newDisposal.itemCode}
-                    onChange={(e) =>
-                      setNewDisposal({ ...newDisposal, itemCode: e.target.value })
-                    }
+                    onChange={(e) => setNewDisposal({ ...newDisposal, itemCode: e.target.value })}
                     placeholder="SKU-001"
                   />
                 </div>
@@ -534,6 +621,50 @@ export function DisposalModule() {
         </Dialog>
       </div>
 
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Disposal Record</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this disposal record? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <div className="mb-2">
+              <span className="font-semibold">Item:</span>{" "}
+              {recordToDelete?.itemName}{" "}
+              <span className="text-xs text-muted-foreground">({recordToDelete?.itemCode})</span>
+            </div>
+            <div>
+              <span className="font-semibold">Date:</span>{" "}
+              {recordToDelete?.disposalDate}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setRecordToDelete(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (recordToDelete) handleDeleteDisposal(recordToDelete);
+              }}
+              type="button"
+            >
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Statistics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -637,6 +768,7 @@ export function DisposalModule() {
                       <TableHead>Condition</TableHead>
                       <TableHead>Method</TableHead>
                       <TableHead>Date</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -690,6 +822,19 @@ export function DisposalModule() {
                           </Badge>
                         </TableCell>
                         <TableCell>{record.disposalDate}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Delete"
+                            onClick={() => {
+                              setRecordToDelete(record);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

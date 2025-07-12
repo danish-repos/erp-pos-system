@@ -60,24 +60,7 @@ export default function ERPSystem() {
   }
 
   return (
-    <ProtectedRoute
-      fallback={
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="text-center space-y-4">
-            <h1 className="text-2xl font-bold">Power Project ERP + POS System</h1>
-            <p className="text-gray-600">Please sign in to access the system</p>
-            <div className="space-x-4">
-              <Button asChild>
-                <Link href="/sign-in">Sign In</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/sign-up">Sign Up</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      }
-    >
+    <ProtectedRoute>
       <SidebarProvider>
         <AppSidebar activeModule={activeModule} setActiveModule={setActiveModule} />
         <main className="flex-1 overflow-hidden">
@@ -110,14 +93,9 @@ export default function ERPSystem() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href="/sign-in">Sign In</Link>
-                  </Button>
-                  <Button size="sm" asChild>
-                    <Link href="/sign-up">Sign Up</Link>
-                  </Button>
-                </>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/sign-in">Sign In</Link>
+                </Button>
               )}
             </div>
           </div>

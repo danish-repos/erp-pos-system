@@ -74,6 +74,7 @@ export interface SaleRecord {
   paymentMethod: "cash" | "card" | "mobile" | "credit"
   paymentStatus: "paid" | "partial" | "pending"
   deliveryStatus: "pickup" | "delivered" | "pending" | "cancelled"
+  deliveryType: "pickup" | "delivery"
   deliveryAddress?: string
   deliveryDate?: string
   staffMember: string
@@ -471,6 +472,10 @@ export class DisposalService extends FirebaseService {
 
   static async updateDisposalRecord(id: string, record: Partial<DisposalRecord>): Promise<void> {
     return this.update("disposalRecords", id, record)
+  }
+
+  static async deleteDisposalRecord(id: string): Promise<void> {
+    return this.delete("disposalRecords", id)
   }
 
   static subscribeToDisposalRecords(callback: (records: DisposalRecord[]) => void): () => void {

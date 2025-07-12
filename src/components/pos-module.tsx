@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Plus, Minus, Trash2, User, CreditCard, Smartphone, Banknote, Printer, MessageSquare, ShoppingCart, AlertTriangle } from "lucide-react"
-import { ProductService, SalesService, EmployeeService, BargainingService, type Product, type Employee, type SaleItem } from "@/lib/firebase-services"
+import { ProductService, SalesService, EmployeeService, BargainingService, type Product, type Employee, type SaleItem, type SaleRecord } from "@/lib/firebase-services"
 import { useToast } from "@/hooks/use-toast"
 
 // Defining the types for cart items
@@ -34,6 +34,14 @@ export function POSModule() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
+  const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>('pickup');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState('');
+  // New: Cart-level discount
+  const [cartDiscount, setCartDiscount] = useState<number>(0);
+
+  // New: Sale completed state for showing modal
+  const [showPostSaleModal, setShowPostSaleModal] = useState(false);
 
   // Load products and employees from Firebase
   useEffect(() => {
@@ -83,7 +91,7 @@ export function POSModule() {
       setCart(
         cart.map((item) =>
           item.id === product.id
-            ? { ...item, quantity: item.quantity + 1, finalPrice: (item.quantity + 1) * (item.price - item.discount) }
+            ? { ...item, quantity: item.quantity + 1, finalPrice: (item.quantity + 1) * item.price }
             : item,
         ),
       )
@@ -106,7 +114,7 @@ export function POSModule() {
           code: product.code,
           price: product.currentPrice,
           quantity: 1,
-          discount: 0,
+          discount: 0, // No longer used, but kept for type compatibility
           finalPrice: product.currentPrice,
           availableStock: product.stock,
         },
@@ -136,33 +144,38 @@ export function POSModule() {
     setCart(
       cart.map((item) =>
         item.id === id
-          ? { ...item, quantity: newQuantity, finalPrice: newQuantity * (item.price - item.discount) }
+          ? { ...item, quantity: newQuantity, finalPrice: newQuantity * item.price }
           : item,
       ),
     )
   }
 
-  const updateDiscount = (id: string, discount: number) => {
-    setCart(
-      cart.map((item) =>
-        item.id === id ? { ...item, discount, finalPrice: item.quantity * (item.price - discount) } : item,
-      ),
-    )
-  }
+  // Remove per-item discount logic
+  // const updateDiscount = (id: string, discount: number) => {
+  //   setCart(
+  //     cart.map((item) =>
+  //       item.id === id ? { ...item, discount, finalPrice: item.quantity * (item.price - discount) } : item,
+  //     ),
+  //   )
+  // }
 
   const removeFromCart = (id: string) => {
     setCart(cart.filter((item) => item.id !== id))
   }
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const totalDiscount = cart.reduce((sum, item) => sum + item.discount * item.quantity, 0)
-  const total = cart.reduce((sum, item) => sum + item.finalPrice, 0)
+  // Cart-level discount
+  const totalDiscount = cartDiscount
+  const total = Math.max(0, subtotal - totalDiscount)
 
   // Check if any cart item exceeds stock
   const hasStockIssues = cart.some((item) => {
     const product = products.find((p) => p.id === item.id)
     return product ? item.quantity > product.stock : false
   })
+
+  // Save the last sale data for printing/whatsapp after sale
+  const [lastSaleData, setLastSaleData] = useState<Record<string, unknown> | null>(null);
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
@@ -210,17 +223,51 @@ export function POSModule() {
     }
 
     try {
+      // Distribute cart-level discount proportionally to items for record-keeping
+      const distributedDiscounts: { [id: string]: number } = {}
+      const runningDiscount = totalDiscount
+      if (cart.length > 0 && totalDiscount > 0 && subtotal > 0) {
+        // Proportional distribution
+        let sumDistributed = 0
+        cart.forEach((item, idx) => {
+          if (idx === cart.length - 1) {
+            // Last item gets the remainder
+            distributedDiscounts[item.id] = runningDiscount - sumDistributed
+          } else {
+            const itemShare = Math.round((item.price * item.quantity / subtotal) * totalDiscount)
+            distributedDiscounts[item.id] = itemShare
+            sumDistributed += itemShare
+          }
+        })
+      } else {
+        cart.forEach(item => { distributedDiscounts[item.id] = 0 })
+      }
+
       const saleItems: SaleItem[] = cart.map((item) => ({
         id: item.id,
         name: item.name,
         code: item.code,
         quantity: item.quantity,
         originalPrice: item.price,
-        finalPrice: item.price - item.discount,
-        discount: item.discount,
+        finalPrice: item.price - (distributedDiscounts[item.id] ?? 0) / (item.quantity || 1),
+        discount: distributedDiscounts[item.id] ?? 0,
       }))
 
-      const saleData = {
+      // --- FIX: Ensure deliveryAddress and deliveryDate are never undefined in saleData ---
+      // If deliveryType is 'delivery', deliveryAddress must be a non-empty string (required).
+      // If deliveryType is 'pickup', deliveryAddress and deliveryDate should be omitted from the object (not undefined).
+      // If deliveryType is 'delivery' but deliveryAddress is empty, set to empty string (not undefined).
+
+      let deliveryAddressValue: string | undefined = undefined
+      let deliveryDateValue: string | undefined = undefined
+
+      if (deliveryType === 'delivery') {
+        deliveryAddressValue = deliveryAddress || ""
+        deliveryDateValue = deliveryDate || ""
+      }
+
+      // Only include deliveryAddress and deliveryDate if deliveryType is 'delivery'
+      const saleData: Omit<SaleRecord, "id"> = {
         invoiceNumber: `INV-${Date.now()}`,
         date: new Date().toISOString().split("T")[0],
         time: new Date().toLocaleTimeString(),
@@ -234,11 +281,21 @@ export function POSModule() {
         total,
         paymentMethod: paymentMethod as "cash" | "card" | "mobile" | "credit",
         paymentStatus: (paymentMethod === "credit" ? "pending" : "paid") as "paid" | "partial" | "pending",
-        deliveryStatus: "pickup" as "pickup" | "delivered" | "pending" | "cancelled",
+        deliveryStatus: deliveryType === 'delivery' ? 'pending' : 'pickup',
+        deliveryType: deliveryType,
         staffMember: employees.find((emp) => emp.id === staffMember)?.name || "",
         notes: "",
         returnStatus: "none" as "none" | "partial" | "full",
       }
+
+      if (deliveryType === 'delivery') {
+        saleData.deliveryAddress = deliveryAddressValue
+        // Only include deliveryDate if it's a non-empty string
+        if (deliveryDateValue && deliveryDateValue.trim() !== "") {
+          saleData.deliveryDate = deliveryDateValue
+        }
+      }
+      // --- END FIX ---
 
       await SalesService.createSale(saleData)
 
@@ -252,27 +309,30 @@ export function POSModule() {
         }
       }
 
-      // Create bargain records for discounted items
-      for (const item of cart) {
-        if (item.discount > 0) {
-          await BargainingService.createBargainRecord({
-            date: new Date().toISOString().split("T")[0],
-            time: new Date().toLocaleTimeString(),
-            productName: item.name,
-            productCode: item.code,
-            originalPrice: item.price,
-            finalPrice: item.price - item.discount,
-            discountAmount: item.discount,
-            discountPercentage: item.price > 0 ? Math.round((item.discount / item.price) * 100) : 0,
-            customerName: customerName || "Walk-in Customer",
-            customerPhone: customerPhone || "",
-            staffMember: employees.find((emp) => emp.id === staffMember)?.name || "",
-            reason: "POS Sale Discount",
-            invoiceNumber: saleData.invoiceNumber,
-            category: products.find((p) => p.id === item.id)?.fabricType || "",
-            profitMargin: item.price > 0 ? Math.round(((item.price - item.discount - (products.find((p) => p.id === item.id)?.purchaseCost || 0)) / item.price) * 100) : 0,
-            status: "approved",
-          })
+      // Create bargain records for discounted items (if cart-level discount, only if >0)
+      if (totalDiscount > 0) {
+        for (const item of cart) {
+          const itemDiscount = distributedDiscounts[item.id] ?? 0
+          if (itemDiscount > 0) {
+            await BargainingService.createBargainRecord({
+              date: new Date().toISOString().split("T")[0],
+              time: new Date().toLocaleTimeString(),
+              productName: item.name,
+              productCode: item.code,
+              originalPrice: item.price,
+              finalPrice: item.price - (itemDiscount / (item.quantity || 1)),
+              discountAmount: itemDiscount,
+              discountPercentage: item.price > 0 ? Math.round((itemDiscount / (item.price * item.quantity)) * 100) : 0,
+              customerName: customerName || "Walk-in Customer",
+              customerPhone: customerPhone || "",
+              staffMember: employees.find((emp) => emp.id === staffMember)?.name || "",
+              reason: "POS Sale Discount",
+              invoiceNumber: saleData.invoiceNumber,
+              category: products.find((p) => p.id === item.id)?.fabricType || "",
+              profitMargin: item.price > 0 ? Math.round(((item.price - (itemDiscount / (item.quantity || 1)) - (products.find((p) => p.id === item.id)?.purchaseCost || 0)) / item.price) * 100) : 0,
+              status: "approved",
+            })
+          }
         }
       }
 
@@ -314,11 +374,37 @@ export function POSModule() {
         description: `Sale completed successfully! Total: Rs${total.toLocaleString()}`,
       })
 
+      // Save last sale data for invoice/whatsapp
+      setLastSaleData({
+        invoiceNumber: saleData.invoiceNumber,
+        date: saleData.date,
+        time: saleData.time,
+        customerName: saleData.customerName,
+        customerPhone: saleData.customerPhone,
+        staffName: saleData.staffMember,
+        items: cart.map(item => ({
+          name: item.name,
+          code: item.code,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        subtotal,
+        totalDiscount,
+        total,
+      });
+
+      // Show modal for post-sale actions
+      setShowPostSaleModal(true);
+
       // Reset form
       setCart([])
       setCustomerName("")
       setCustomerPhone("")
       setPaymentMethod("")
+      setDeliveryType('pickup');
+      setDeliveryAddress('');
+      setDeliveryDate('');
+      setCartDiscount(0);
       
     } catch {
       toast({
@@ -330,8 +416,26 @@ export function POSModule() {
   }
 
   // Print invoice handler
-  const handlePrint = () => {
-    // Create a new window for printing
+  const handlePrint = (saleDataOverride?: Record<string, unknown>) => {
+    // Use lastSaleData if provided, else use current cart
+    const data = saleDataOverride || lastSaleData || {
+      invoiceNumber: `INV-${Date.now()}`,
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString(),
+      customerName: customerName || 'Walk-in Customer',
+      customerPhone: customerPhone || '-',
+      staffName: employees.find((emp) => emp.id === staffMember)?.name || '',
+      items: cart.map(item => ({
+        name: item.name,
+        code: item.code,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      subtotal,
+      totalDiscount,
+      total,
+    };
+
     const printWindow = window.open('', '_blank', 'width=800,height=600')
     if (!printWindow) return
 
@@ -352,12 +456,12 @@ export function POSModule() {
         </head>
         <body>
           <h2>Invoice</h2>
-          <p><strong>Invoice #:</strong> INV-${Date.now()}<br/>
-          <strong>Date:</strong> ${new Date().toLocaleDateString()}<br/>
-          <strong>Time:</strong> ${new Date().toLocaleTimeString()}<br/>
-          <strong>Customer:</strong> ${customerName || 'Walk-in Customer'}<br/>
-          <strong>Phone:</strong> ${customerPhone || '-'}<br/>
-          <strong>Staff:</strong> ${employees.find((emp) => emp.id === staffMember)?.name || ''}</p>
+          <p><strong>Invoice #:</strong> ${data.invoiceNumber}<br/>
+          <strong>Date:</strong> ${data.date}<br/>
+          <strong>Time:</strong> ${data.time}<br/>
+          <strong>Customer:</strong> ${data.customerName}<br/>
+          <strong>Phone:</strong> ${data.customerPhone}<br/>
+          <strong>Staff:</strong> ${data.staffName}</p>
           <table>
             <thead>
               <tr>
@@ -365,27 +469,25 @@ export function POSModule() {
                 <th>Code</th>
                 <th>Qty</th>
                 <th>Price</th>
-                <th>Discount</th>
                 <th>Total</th>
               </tr>
             </thead>
             <tbody>
-              ${cart.map(item => `
+              ${(data.items as Array<{name: string, code: string, quantity: number, price: number}>).map((item) => `
                 <tr>
                   <td>${item.name}</td>
                   <td>${item.code}</td>
                   <td>${item.quantity}</td>
                   <td>Rs${item.price}</td>
-                  <td>Rs${item.discount}</td>
-                  <td>Rs${item.finalPrice}</td>
+                  <td>Rs${item.price * item.quantity}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
           <table class="totals">
-            <tr><td><strong>Subtotal:</strong></td><td>Rs${subtotal.toLocaleString()}</td></tr>
-            <tr><td><strong>Total Discount:</strong></td><td>-Rs${totalDiscount.toLocaleString()}</td></tr>
-            <tr><td><strong>Total:</strong></td><td>Rs${total.toLocaleString()}</td></tr>
+            <tr><td><strong>Subtotal:</strong></td><td>Rs${(data.subtotal as number).toLocaleString()}</td></tr>
+            <tr><td><strong>Total Discount:</strong></td><td>-Rs${(data.totalDiscount as number).toLocaleString()}</td></tr>
+            <tr><td><strong>Total:</strong></td><td>Rs${(data.total as number).toLocaleString()}</td></tr>
           </table>
         </body>
       </html>
@@ -397,8 +499,26 @@ export function POSModule() {
   }
 
   // WhatsApp invoice handler
-  const handleWhatsAppInvoice = () => {
-    if (!customerPhone) {
+  const handleWhatsAppInvoice = (saleDataOverride?: Record<string, unknown>) => {
+    const data = saleDataOverride || lastSaleData || {
+      invoiceNumber: `INV-${Date.now()}`,
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString(),
+      customerName: customerName || 'Walk-in Customer',
+      customerPhone: customerPhone || '',
+      staffName: employees.find((emp) => emp.id === staffMember)?.name || '',
+      items: cart.map(item => ({
+        name: item.name,
+        code: item.code,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      subtotal,
+      totalDiscount,
+      total,
+    };
+
+    if (!data.customerPhone) {
       toast({
         title: "Missing Phone Number",
         description: "Please enter the customer's phone number to send the invoice via WhatsApp.",
@@ -409,18 +529,18 @@ export function POSModule() {
     // Format WhatsApp message
     const message =
       `*Invoice*\n` +
-      `Invoice #: INV-${Date.now()}\n` +
-      `Date: ${new Date().toLocaleDateString()}\n` +
-      `Time: ${new Date().toLocaleTimeString()}\n` +
-      `Customer: ${customerName || 'Walk-in Customer'}\n` +
-      `Staff: ${employees.find((emp) => emp.id === staffMember)?.name || ''}\n` +
+      `Invoice #: ${data.invoiceNumber}\n` +
+      `Date: ${data.date}\n` +
+      `Time: ${data.time}\n` +
+      `Customer: ${data.customerName}\n` +
+      `Staff: ${data.staffName}\n` +
       `\n*Items:*\n` +
-      cart.map(item => `${item.name} (${item.code}) x${item.quantity} - Rs${item.finalPrice}`).join("\n") +
-      `\n\nSubtotal: Rs${subtotal.toLocaleString()}\n` +
-      `Discount: -Rs${totalDiscount.toLocaleString()}\n` +
-      `Total: Rs${total.toLocaleString()}`
+      (data.items as Array<{name: string, code: string, quantity: number, price: number}>).map((item) => `${item.name} (${item.code}) x${item.quantity} - Rs${item.price * item.quantity}`).join("\n") +
+      `\n\nSubtotal: Rs${(data.subtotal as number).toLocaleString()}\n` +
+      `Discount: -Rs${(data.totalDiscount as number).toLocaleString()}\n` +
+      `Total: Rs${(data.total as number).toLocaleString()}`
     // WhatsApp API URL (international format, no + or leading 0)
-    const phone = customerPhone.replace(/[^0-9]/g, "")
+    const phone = (data.customerPhone as string).replace(/[^0-9]/g, "")
     const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, '_blank')
   }
@@ -578,7 +698,8 @@ export function POSModule() {
                           <span>Price:</span>
                           <span>Rs{item.price}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        {/* Remove per-item discount input */}
+                        {/* <div className="flex items-center gap-2">
                           <Label className="text-xs">Discount:</Label>
                           <Input
                             type="number"
@@ -587,10 +708,10 @@ export function POSModule() {
                             onChange={(e) => updateDiscount(item.id, Number(e.target.value))}
                             className="h-6 text-xs"
                           />
-                        </div>
+                        </div> */}
                         <div className="flex justify-between text-sm font-medium">
                           <span>Total:</span>
-                          <span>Rs{item.finalPrice}</span>
+                          <span>Rs{item.price * item.quantity}</span>
                         </div>
                       </div>
                     </div>
@@ -600,6 +721,27 @@ export function POSModule() {
             )}
 
             <Separator />
+
+            {/* Cart-level discount input */}
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">Cart Discount:</Label>
+              <Input
+                type="number"
+                min={0}
+                max={subtotal}
+                placeholder="Discount"
+                value={cartDiscount === 0 ? "" : cartDiscount}
+                onChange={(e) => {
+                  let val = Number(e.target.value.replace(/^0+/, ''))
+                  if (isNaN(val) || val < 0) val = 0
+                  if (val > subtotal) val = subtotal
+                  setCartDiscount(val)
+                }}
+                className="h-6 text-xs w-24"
+                inputMode="numeric"
+                pattern="[0-9]*"
+              />
+            </div>
 
             <div className="space-y-2">
               <div className="flex justify-between">
@@ -646,6 +788,40 @@ export function POSModule() {
                 onChange={(e) => setCustomerPhone(e.target.value)}
               />
             </div>
+            <div>
+              <Label>Delivery Type</Label>
+              <Select value={deliveryType} onValueChange={(value) => setDeliveryType(value as "pickup" | "delivery")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pickup">Pickup</SelectItem>
+                  <SelectItem value="delivery">Delivery</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {deliveryType === 'delivery' && (
+              <>
+                <div>
+                  <Label htmlFor="deliveryAddress">Delivery Address</Label>
+                  <Input
+                    id="deliveryAddress"
+                    placeholder="Enter delivery address"
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="deliveryDate">Delivery Date (optional)</Label>
+                  <Input
+                    id="deliveryDate"
+                    type="date"
+                    value={deliveryDate}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -695,19 +871,51 @@ export function POSModule() {
               >
                 Complete Sale
               </Button>
-              <Button variant="outline" className="w-full bg-transparent" onClick={handlePrint}>
-                <Printer className="h-4 w-4 mr-2" />
-                Print
-              </Button>
             </div>
-
-            <Button variant="outline" className="w-full bg-transparent" onClick={handleWhatsAppInvoice}>
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Send WhatsApp Invoice
-            </Button>
           </CardContent>
         </Card>
       </div>
+
+      {/* Post-sale modal */}
+      {showPostSaleModal && lastSaleData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-8 min-w-[320px] max-w-[90vw]">
+            <h3 className="text-lg font-bold mb-4">Sale Completed</h3>
+            <p className="mb-6">What would you like to do next?</p>
+            <div className="flex flex-col gap-3">
+              <Button
+                variant="outline"
+                className="w-full bg-transparent flex items-center justify-center"
+                onClick={() => {
+                  handleWhatsAppInvoice(lastSaleData)
+                  // Do NOT close the modal here
+                }}
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Send WhatsApp Invoice
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full bg-transparent flex items-center justify-center"
+                onClick={() => {
+                  handlePrint(lastSaleData)
+                  // Do NOT close the modal here
+                }}
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Print
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full mt-2"
+                onClick={() => setShowPostSaleModal(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
